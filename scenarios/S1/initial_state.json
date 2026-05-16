@@ -1,0 +1,25 @@
+{
+  "inventory": {
+    "AC-INV-12K-HAI": 18,
+    "SKU-AC-002": 45,
+    "SKU-RF-001": 200,
+    "SKU-TV-001": 30,
+    "SKU-MW-001": 85
+  },
+  "customer_etas": {
+    "ORD-1001": "2026-05-20",
+    "ORD-1002": "2026-05-22",
+    "ORD-1003": "2026-05-18"
+  },
+  "supplier_status": {
+    "Karachi Cool Imports": "active",
+    "Lahore Electronics Hub": "active",
+    "Faisalabad Parts Co": "active"
+  },
+  "notification_queue": [],
+  "open_orders": [],
+  "risk_metrics": {
+    "stockout_risk_pct": 65.0,
+    "revenue_at_risk_pkr": 3200000.0
+  }
+}

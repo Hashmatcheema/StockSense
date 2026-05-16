@@ -1,0 +1,5 @@
+scenario_id: S1
+constraints:
+  budget_pkr: 5000000
+  lead_time_days: 14
+  urgency: critical

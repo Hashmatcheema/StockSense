@@ -1,0 +1,16 @@
+[
+  {
+    "date": "2026-05-14",
+    "customer": "CUST-001",
+    "category": "delivery_delay",
+    "related_sku": "AC-INV-12K-HAI",
+    "notes": "Customer called inquiring about delayed AC installation."
+  },
+  {
+    "date": "2026-05-15",
+    "customer": "CUST-002",
+    "category": "delivery_delay",
+    "related_sku": "AC-INV-12K-HAI",
+    "notes": "Complaint regarding pushed back delivery date."
+  }
+]

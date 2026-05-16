@@ -1,0 +1,6 @@
+sku,name,current_stock,minimum_stock,warehouse_location
+AC-INV-12K-HAI,1.0 Ton Haier Inverter AC,18,50,A-01
+SKU-AC-002,1.5 Ton Dawlance Non-Inverter,45,20,A-02
+SKU-RF-001,PEL Double Door Refrigerator,200,80,B-01
+SKU-TV-001,55 Inch TCL Smart TV,30,15,C-01
+SKU-MW-001,Orient Microwave Oven,85,30,D-01
