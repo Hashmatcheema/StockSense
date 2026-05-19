@@ -22,6 +22,7 @@ _CREDIBILITY_PRIORS: dict[SourceKind, float] = {
     SourceKind.JSON: 0.80,
     SourceKind.EMAIL: 0.65,
     SourceKind.NEWS_HTML: 0.45,
+    SourceKind.NEWS_MHTML: 0.70,
     SourceKind.PDF: 0.75,
 }
 
@@ -32,6 +33,7 @@ _EXT_MAP: dict[str, SourceKind] = {
     ".json": SourceKind.JSON,
     ".txt": SourceKind.EMAIL,
     ".html": SourceKind.NEWS_HTML,
+    ".mhtml": SourceKind.NEWS_MHTML,
     ".pdf": SourceKind.PDF,
 }
 
@@ -50,6 +52,9 @@ def _parse_file(path: Path) -> str | dict | list:
     elif ext == ".csv":
         reader = csv.DictReader(io.StringIO(text))
         return [row for row in reader]
+    elif ext == ".mhtml":
+        from app.agents.ingestion import parse_mhtml
+        return parse_mhtml(str(path))
     else:
         # .txt, .html, .pdf (text-mode) — return raw string
         return text

@@ -2,8 +2,8 @@
 from __future__ import annotations
 import asyncio
 from fastapi import APIRouter, BackgroundTasks
-from app.schemas import RunStartResponse, RunSummary, ScenarioInfo
-from app.scenario_loader import list_scenarios, load_sources, load_initial_state
+from app.schemas import RunStartResponse, RunSummary, ScenarioInfo, RunStartRequest
+from app.scenario_loader import list_scenarios, load_initial_state
 from app.sandbox import Sandbox
 from app.agents.supervisor import SupervisorAgent
 from app import database as db
@@ -18,9 +18,11 @@ async def get_scenarios():
 
 
 @router.post("/{scenario_id}/run", response_model=RunStartResponse)
-async def run_scenario(scenario_id: str, background_tasks: BackgroundTasks):
+async def run_scenario(scenario_id: str, background_tasks: BackgroundTasks, req: RunStartRequest | None = None):
     """Start a scenario run (SRS §7.3: POST /scenarios/{id}/run)."""
-    run = RunSummary(scenario_id=scenario_id)
+    trigger_type = req.trigger_type if req else "manual"
+    trigger_reason = req.trigger_reason if req else None
+    run = RunSummary(scenario_id=scenario_id, trigger_type=trigger_type, trigger_reason=trigger_reason)
     await db.create_run(run)
 
     background_tasks.add_task(_execute_run, run.run_id, scenario_id)
@@ -29,15 +31,14 @@ async def run_scenario(scenario_id: str, background_tasks: BackgroundTasks):
 
 
 async def _execute_run(run_id: str, scenario_id: str) -> None:
-    """Background task: load sources, run supervisor pipeline."""
+    """Background task: load initial state, run supervisor pipeline."""
     try:
-        sources = load_sources(scenario_id)
         initial_state = load_initial_state(scenario_id)
         sandbox = Sandbox(initial_state)
         await sandbox.persist_snapshot(run_id, "pre_run")
 
-        supervisor = SupervisorAgent(run_id, sandbox)
-        await supervisor.run(sources)
+        supervisor = SupervisorAgent(run_id, sandbox, scenario_id=scenario_id)
+        await supervisor.run(scenario_id)
     except Exception as e:
         import traceback
         import sys

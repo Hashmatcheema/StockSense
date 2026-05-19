@@ -23,6 +23,7 @@ class SourceKind(str, Enum):
     JSON = "json"
     EMAIL = "email"
     NEWS_HTML = "news_html"
+    NEWS_MHTML = "news_mhtml"
 
 
 class SignalKind(str, Enum):
@@ -156,6 +157,8 @@ class ExecutionResult(BaseModel):
 class RiskMetrics(BaseModel):
     stockout_risk_pct: float = 0.0
     revenue_at_risk_pkr: float = 0.0
+    days_of_stock_remaining: int = 0
+    pending_customer_orders_affected: int = 0
 
 
 class BusinessState(BaseModel):
@@ -166,6 +169,9 @@ class BusinessState(BaseModel):
     notification_queue: list[dict] = Field(default_factory=list)
     open_orders: list[dict] = Field(default_factory=list)
     risk_metrics: RiskMetrics = Field(default_factory=RiskMetrics)
+    validated_skus: list[str] = Field(default_factory=list)
+    investigations: list[dict] = Field(default_factory=list)
+    scheduled_checks: list[dict] = Field(default_factory=list)
 
 
 class StateDiff(BaseModel):
@@ -204,12 +210,16 @@ class RunSummary(BaseModel):
     total_tokens_used: int = 0
     total_cost_usd: float = 0.0
     error: str | None = None
+    trigger_type: str = "manual"
+    trigger_reason: str | None = None
 
 
 # ── API Request / Response ───────────────────────────────────────────────────
 
 class RunStartRequest(BaseModel):
     offline_mode: bool = False
+    trigger_type: str = "manual"
+    trigger_reason: str | None = None
 
 
 class RunStartResponse(BaseModel):

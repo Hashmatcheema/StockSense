@@ -3,13 +3,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import init_db
-from app.routes import health, scenarios, runs
-
+from app.routes import health, scenarios, runs, monitor_config
+from app.monitor import start_monitor, stop_monitor
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    start_monitor()
     yield
+    stop_monitor()
 
 app = FastAPI(
     title="StockSense API",
@@ -25,6 +27,7 @@ app.add_middleware(CORSMiddleware,
 app.include_router(health.router)
 app.include_router(scenarios.router)
 app.include_router(runs.router)
+app.include_router(monitor_config.router)
 
 if __name__ == "__main__":
     import uvicorn

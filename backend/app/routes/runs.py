@@ -10,6 +10,14 @@ from app.schemas import BusinessState, StateDiff, ActionPlan
 router = APIRouter(prefix="/runs", tags=["runs"])
 
 
+@router.get("/latest")
+async def get_latest_runs(limit: int = 5):
+    """GET /runs/latest?limit=N — latest runs (FR-6.1)."""
+    limit = max(1, min(limit, 20))
+    runs = await db.get_latest_runs(limit)
+    return runs
+
+
 @router.get("/{run_id}")
 async def get_run(run_id: str):
     """GET /runs/{run_id} — final state + trace summary."""
@@ -52,7 +60,27 @@ async def get_state_diff(run_id: str):
     sb = Sandbox(before)
     sb._current = after
     diff = sb.compute_diff()
-    return diff.model_dump()
+    
+    # Extract actions_taken and structured action_plan from the stored action_plan
+    actions_taken = []
+    action_plan_structured = None
+    action_plan_json = run.get("action_plan")
+    if action_plan_json:
+        try:
+            plan = json.loads(action_plan_json)
+            action_plan_structured = plan  # Return as structured dict, not string
+            for a in plan.get("actions", []):
+                actions_taken.append({
+                    "kind": a.get("kind", "unknown"),
+                    "rationale": a.get("rationale", ""),
+                })
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    result = diff.model_dump()
+    result["actions_taken"] = actions_taken
+    result["action_plan"] = action_plan_structured
+    return result
 
 
 @router.get("/{run_id}/export")

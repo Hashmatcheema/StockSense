@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+from datetime import datetime
 from pathlib import Path
 
 from app.schemas import BusinessState, RiskMetrics, StateDiff
@@ -54,6 +55,9 @@ class Sandbox:
           {"risk_metrics": {"stockout_risk_pct": -30.0}}
           {"notification_queue": [{"to": "...", "msg": "..."}]}
           {"open_orders": [{"sku": "...", "qty": 100}]}
+          {"validated_skus": ["SKU-001"]}
+          {"investigations": [{"reason": "...", ...}]}
+          {"scheduled_checks": [{"scenario_id": "...", ...}]}
         """
         s = self._current
 
@@ -94,6 +98,30 @@ class Sandbox:
                 s.risk_metrics.revenue_at_risk_pkr = max(
                     0, s.risk_metrics.revenue_at_risk_pkr + rm["revenue_at_risk_pkr"]
                 )
+            if "days_of_stock_remaining" in rm:
+                s.risk_metrics.days_of_stock_remaining = max(
+                    0, s.risk_metrics.days_of_stock_remaining + rm["days_of_stock_remaining"]
+                )
+            if "pending_customer_orders_affected" in rm:
+                s.risk_metrics.pending_customer_orders_affected = max(
+                    0, s.risk_metrics.pending_customer_orders_affected + rm["pending_customer_orders_affected"]
+                )
+
+        # Validated SKUs append
+        if "validated_skus" in diff:
+            for sku in diff["validated_skus"]:
+                if sku and sku not in s.validated_skus:
+                    s.validated_skus.append(sku)
+
+        # Investigations append
+        if "investigations" in diff:
+            for inv in diff["investigations"]:
+                s.investigations.append(inv)
+
+        # Scheduled checks append
+        if "scheduled_checks" in diff:
+            for chk in diff["scheduled_checks"]:
+                s.scheduled_checks.append(chk)
 
     def revert_diff(self, diff: dict) -> None:
         """Reverse a previously applied diff (for rollback of specific actions)."""
@@ -158,9 +186,59 @@ class Sandbox:
         if sup_changes:
             changes["supplier_status"] = sup_changes
 
+        # Customer ETAs
+        eta_changes = {}
+        for oid in set(before.customer_etas) | set(after.customer_etas):
+            b_eta = before.customer_etas.get(oid)
+            a_eta = after.customer_etas.get(oid)
+            if b_eta != a_eta:
+                eta_changes[oid] = {"before": b_eta, "after": a_eta}
+        if eta_changes:
+            # Compute average days shifted
+            total_days = 0
+            count = 0
+            examples = []
+            for oid, vals in eta_changes.items():
+                b_str = vals["before"]
+                a_str = vals["after"]
+                if b_str and a_str:
+                    try:
+                        b_date = datetime.fromisoformat(b_str).date()
+                        a_date = datetime.fromisoformat(a_str).date()
+                        delta_days = (a_date - b_date).days
+                        total_days += delta_days
+                        count += 1
+                        if len(examples) < 3:
+                            examples.append({
+                                "order_id": oid,
+                                "before": b_str,
+                                "after": a_str,
+                                "days_shifted": delta_days,
+                            })
+                    except (ValueError, TypeError):
+                        pass
+            changes["customer_etas"] = {
+                "orders_shifted": len(eta_changes),
+                "avg_days_shifted": round(total_days / max(1, count)),
+                "examples": examples,
+            }
+
         # Notifications and orders count
         changes["notifications_added"] = len(after.notification_queue) - len(before.notification_queue)
         changes["orders_added"] = len(after.open_orders) - len(before.open_orders)
+
+        # New state fields
+        validated_added = len(after.validated_skus) - len(before.validated_skus)
+        if validated_added > 0:
+            changes["validated_skus_added"] = validated_added
+
+        investigations_added = len(after.investigations) - len(before.investigations)
+        if investigations_added > 0:
+            changes["investigations_added"] = investigations_added
+
+        scheduled_added = len(after.scheduled_checks) - len(before.scheduled_checks)
+        if scheduled_added > 0:
+            changes["scheduled_checks_added"] = scheduled_added
 
         return StateDiff(before=before, after=after, changes_summary=changes)
 

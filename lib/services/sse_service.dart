@@ -13,6 +13,12 @@ class SseService {
   /// Open an SSE connection and return a stream of TraceEvents.
   Stream<TraceEvent> connect(String runId) {
     _isDone = false;
+    
+    // If the previous controller is still open, close it cleanly
+    if (_controller != null && !_controller!.isClosed) {
+      _controller!.close();
+    }
+    // Create a fresh controller for this connection
     _controller = StreamController<TraceEvent>.broadcast();
     _client = http.Client();
 
@@ -50,16 +56,16 @@ class SseService {
               } catch (_) {}
             } else if (line.startsWith('event: done')) {
               _isDone = true;
-              _controller?.close();
+              if (_controller != null && !_controller!.isClosed) _controller!.close();
               return;
             }
           }
         }
       }
     } catch (e) {
-      _controller?.addError(e);
+      if (_controller != null && !_controller!.isClosed) _controller!.addError(e);
     } finally {
-      if (!_isDone) _controller?.close();
+      if (!_isDone && _controller != null && !_controller!.isClosed) _controller!.close();
     }
   }
 

@@ -1,0 +1,27 @@
+{
+  "inventory": {
+    "SKU-AC-001": 120,
+    "SKU-WM-002": 45,
+    "SKU-RF-003": 200,
+    "SKU-TV-004": 30,
+    "SKU-MW-005": 85
+  },
+  "customer_etas": {
+    "ORD-S2-001": "2024-10-20",
+    "ORD-S2-002": "2024-10-22",
+    "ORD-S2-003": "2024-10-25"
+  },
+  "supplier_status": {
+    "Karachi Cool Systems": "active",
+    "Lahore Electronics Hub": "active",
+    "Faisalabad Parts Co": "active"
+  },
+  "notification_queue": [],
+  "open_orders": [],
+  "risk_metrics": {
+    "stockout_risk_pct": 65,
+    "revenue_at_risk_pkr": 3200000,
+    "days_of_stock_remaining": 4,
+    "pending_customer_orders_affected": 31
+  }
+}

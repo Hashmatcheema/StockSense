@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../models/scenario.dart';
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 import 'live_run_screen.dart';
 
-/// Scenarios screen — lists the three acceptance scenarios (FR-6.1).
 class ScenariosScreen extends StatefulWidget {
   const ScenariosScreen({super.key});
 
@@ -13,277 +15,522 @@ class ScenariosScreen extends StatefulWidget {
 
 class _ScenariosScreenState extends State<ScenariosScreen> with SingleTickerProviderStateMixin {
   final ApiService _api = ApiService();
-  final List<Map<String, dynamic>> _scenarios = [
+  bool _isLoading = true;
+  String? _loadError;
+
+  List<dynamic> _latestRuns = [];
+  List<Scenario> _scenarios = [];
+  Map<String, dynamic>? _monitorConfig;
+  Timer? _refreshTimer;
+
+  late AnimationController _pulseCtrl;
+
+  // Fallback scenario data when backend is unreachable
+  final List<Map<String, dynamic>> _fallbackScenarios = [
     {
       'id': 'S1',
       'title': 'Supply Chain Disruption — Happy Path',
-      'subtitle': 'Stockout risk, supplier delays, fuel price surge. '
-          'System extracts insights, resolves contradictions, generates action plan.',
-      'tags': ['5 sources', 'happy-path', 'stockout'],
+      'description': 'Karachi Cool Imports has gone silent.',
+      'source_count': 6,
+      'tags': ['happy-path', 'stockout', 'supply-chain'],
     },
     {
       'id': 'S2',
       'title': 'Conflicting Market Intelligence',
-      'subtitle': 'Three sources report conflicting stock levels. '
-          'Low-credibility news source attempts crisis spoofing.',
-      'tags': ['5 sources', 'contradictions', 'credibility'],
+      'description': 'Three sources report wildly different stock levels.',
+      'source_count': 5,
+      'tags': ['contradictions', 'credibility', 'filtering'],
     },
     {
       'id': 'S3',
       'title': 'Order Failure & Automated Recovery',
-      'subtitle': 'Supplier API fails. System retries, attempts substitution, '
-          'and rolls back dependent actions.',
-      'tags': ['5 sources', 'failure', 'recovery'],
+      'description': 'A critical reorder action fails.',
+      'source_count': 5,
+      'tags': ['failure', 'recovery', 'rollback'],
     },
   ];
-  final bool _loading = false;
-  late AnimationController _shimmerCtrl;
 
   @override
   void initState() {
     super.initState();
-    _shimmerCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _fetchData();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) => _fetchDataSilently());
   }
 
   @override
-  void dispose() { _shimmerCtrl.dispose(); _api.dispose(); super.dispose(); }
+  void dispose() {
+    _pulseCtrl.dispose();
+    _refreshTimer?.cancel();
+    _api.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchData() async {
+    try {
+      final runs = await _api.getLatestRuns(20);
+      final config = await _api.getMonitorConfig();
+      // Try to load scenarios from backend
+      _scenarios = _fallbackScenarios.map((s) => Scenario.fromJson(s)).toList();
+      if (mounted) {
+        setState(() {
+          _latestRuns = runs ?? [];
+          _monitorConfig = config;
+          _isLoading = false;
+          _loadError = null;
+        });
+      }
+    } catch (e) {
+      // Use fallback scenarios even on error
+      _scenarios = _fallbackScenarios.map((s) => Scenario.fromJson(s)).toList();
+      if (mounted) {
+        setState(() {
+          _loadError = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchDataSilently() async {
+    try {
+      final runs = await _api.getLatestRuns(20);
+      final config = await _api.getMonitorConfig();
+      if (_scenarios.isEmpty) {
+        _scenarios = _fallbackScenarios.map((s) => Scenario.fromJson(s)).toList();
+      }
+      if (mounted) {
+        setState(() {
+          if (runs != null) _latestRuns = runs;
+          if (config != null) _monitorConfig = config;
+          if (_isLoading) _isLoading = false;
+          _loadError = null;
+        });
+      }
+    } catch (_) {}
+  }
+
+  String timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inSeconds < 60) return "${diff.inSeconds}s ago";
+    if (diff.inMinutes < 60) return "${diff.inMinutes}m ago";
+    return "${diff.inHours}h ago";
+  }
 
   @override
   Widget build(BuildContext context) {
+    final autonomousRuns = _latestRuns.where((r) => r['trigger_type'] == 'autonomous').toList();
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E21),
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: AppColors.bg,
+      appBar: AppBar(
+        backgroundColor: AppColors.bg,
+        elevation: 0,
+        title: Row(
           children: [
-            _buildHeader(),
-            const SizedBox(height: 8),
-            Expanded(child: _loading ? _buildLoading() : _buildScenarioList()),
+            Icon(Icons.inventory_2_outlined, color: AppColors.actionPrimary, size: 22),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('StockSense',
+                    style: GoogleFonts.inter(
+                        color: AppColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 16)),
+                Text('Khan Traders · Lahore',
+                    style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 11)),
+              ],
+            ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, color: AppColors.textSecondary, size: 20),
+            onPressed: () => Navigator.pushNamed(context, '/settings').then((_) => _fetchData()),
+          ),
+        ],
       ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: AppColors.actionPrimary))
+          : SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildMonitoringStatusBar(),
+                  if (_loadError != null) _buildErrorBanner(),
+                  if (autonomousRuns.isNotEmpty) _buildActiveAlerts(autonomousRuns),
+                  const SizedBox(height: 16),
+                  _buildManualScenarios(),
+                  if (_latestRuns.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    _buildRecentRuns(),
+                  ],
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
     );
   }
 
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildErrorBanner() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.tintCritical,
+        border: const Border(left: BorderSide(width: 4, color: AppColors.stateCritical)),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF00BFA6), Color(0xFF00897B)],
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(Icons.insights, color: Colors.white, size: 28),
-              ),
-              const SizedBox(width: 14),
-              Text('StockSense',
-                style: TextStyle(
-                  fontSize: 28, fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                )),
-            ],
+          const Icon(Icons.cloud_off_outlined, color: AppColors.stateCritical, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text('Backend not reachable',
+                style: GoogleFonts.inter(color: AppColors.stateCritical, fontSize: 12)),
           ),
-          const SizedBox(height: 16),
-          Text('Khan Traders, Lahore',
-            style: TextStyle(fontSize: 14, color: Colors.white54)),
-          const SizedBox(height: 4),
-          Text('Select a scenario to run the autonomous agent crew',
-            style: TextStyle(fontSize: 16, color: Colors.white70)),
+          TextButton(
+            onPressed: _fetchData,
+            child: Text('Retry', style: GoogleFonts.inter(color: AppColors.stateCritical, fontSize: 12, fontWeight: FontWeight.w600)),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildLoading() {
-    return const Center(child: CircularProgressIndicator(color: Color(0xFF00BFA6)));
-  }
-
-  Widget _buildScenarioList() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(20),
-      itemCount: _scenarios.length,
-      itemBuilder: (ctx, i) {
-        final data = _scenarios[i];
-        final scenario = Scenario(
-          id: data['id'] as String,
-          title: data['title'] as String,
-          description: data['subtitle'] as String,
-          sourceCount: 5,
-          tags: List<String>.from(data['tags'] as List),
-        );
-        return _ScenarioTile(
-          scenario: scenario,
-          index: i,
-          onTap: () => _runScenario(scenario),
-        );
-      },
-    );
-  }
-
-  Future<void> _runScenario(Scenario scenario) async {
-    // Show loading indicator
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => Center(
-        child: Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1F38),
-            borderRadius: BorderRadius.circular(20),
+  Widget _buildMonitoringStatusBar() {
+    final nextCheck = _monitorConfig?['next_run_in_seconds'] ?? 0;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(bottom: BorderSide(color: AppColors.border)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              AnimatedBuilder(
+                animation: _pulseCtrl,
+                builder: (context, child) => Opacity(
+                  opacity: 0.3 + (_pulseCtrl.value * 0.7),
+                  child: Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(color: AppColors.stateOk, shape: BoxShape.circle)),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text('Monitoring · next check in ${nextCheck}s',
+                  style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11)),
+            ],
           ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const CircularProgressIndicator(color: Color(0xFF00BFA6)),
-            const SizedBox(height: 16),
-            Text('Starting ${scenario.id}...',
-              style: TextStyle(color: Colors.white70, fontSize: 14)),
-          ]),
-        ),
+        ],
       ),
     );
-
-    final runId = await _api.startRun(scenario.id);
-
-    if (mounted) Navigator.of(context).pop(); // dismiss dialog
-
-    if (runId != null && mounted) {
-      Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => LiveRunScreen(runId: runId, scenario: scenario),
-      ));
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to start scenario. Is the backend running?',
-            style: TextStyle()),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-    }
-  }
-}
-
-// ── Scenario Tile ──────────────────────────────────────────────────────────────
-
-class _ScenarioTile extends StatefulWidget {
-  final Scenario scenario;
-  final int index;
-  final VoidCallback onTap;
-
-  const _ScenarioTile({required this.scenario, required this.index, required this.onTap});
-
-  @override
-  State<_ScenarioTile> createState() => _ScenarioTileState();
-}
-
-class _ScenarioTileState extends State<_ScenarioTile> with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _scale;
-
-  static const _gradients = [
-    [Color(0xFF00BFA6), Color(0xFF00897B)],
-    [Color(0xFF7C4DFF), Color(0xFF536DFE)],
-    [Color(0xFFFF6D00), Color(0xFFFF3D00)],
-  ];
-
-  static const _icons = [Icons.local_shipping, Icons.compare_arrows, Icons.autorenew];
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
-    _scale = Tween(begin: 1.0, end: 0.97).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
   }
 
-  @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = _gradients[widget.index % _gradients.length];
-    final icon = _icons[widget.index % _icons.length];
-
-    return AnimatedBuilder(
-      animation: _scale,
-      builder: (ctx, child) => Transform.scale(scale: _scale.value, child: child),
-      child: GestureDetector(
-        onTapDown: (_) => _ctrl.forward(),
-        onTapUp: (_) { _ctrl.reverse(); widget.onTap(); },
-        onTapCancel: () => _ctrl.reverse(),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [colors[0].withValues(alpha: 0.15), colors[1].withValues(alpha: 0.08)],
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: colors[0].withValues(alpha: 0.3), width: 1),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildActiveAlerts(List<dynamic> alerts) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
             children: [
-              Row(children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: colors),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: Colors.white, size: 22),
-                ),
-                const SizedBox(width: 14),
+              const Icon(Icons.notifications_active_outlined, color: AppColors.stateCritical, size: 14),
+              const SizedBox(width: 6),
+              Text('Active Alerts',
+                  style: GoogleFonts.inter(
+                      color: AppColors.stateCritical, fontSize: 12, fontWeight: FontWeight.w600)),
+              const Spacer(),
+              Text('${alerts.length} alert${alerts.length > 1 ? 's' : ''}',
+                  style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 11)),
+            ],
+          ),
+        ),
+        ...alerts.map((run) {
+          final s = _scenarios.firstWhere(
+              (x) => x.id == run['scenario_id'],
+              orElse: () => Scenario(id: run['scenario_id'] ?? '??', title: 'Unknown', description: '', sourceCount: 0));
+          final dt = DateTime.parse(run['started_at'] ?? DateTime.now().toIso8601String());
+          final isComplete = run['phase'] == 'completed';
+
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppColors.tintCritical,
+              borderRadius: BorderRadius.circular(6),
+              border: const Border(left: BorderSide(width: 4, color: AppColors.stateCritical)),
+            ),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            child: Row(
+              children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(widget.scenario.id,
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                          color: colors[0])),
-                      Text(widget.scenario.title,
-                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600,
-                          color: Colors.white)),
+                      Row(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, color: AppColors.stateCritical, size: 14),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text('${run['scenario_id']}  ·  ${s.title}',
+                                style: GoogleFonts.inter(
+                                    color: AppColors.stateCritical,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(run['trigger_reason'] ?? 'Threshold breached',
+                          style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 2),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          StatusPill(
+                            label: isComplete ? 'Completed' : 'Running',
+                            color: isComplete ? AppColors.stateOk : AppColors.stateWarn,
+                            tint: isComplete ? AppColors.tintOk : AppColors.tintWarn,
+                          ),
+                          const Spacer(),
+                          Text(timeAgo(dt),
+                              style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 11)),
+                        ],
+                      ),
                     ],
                   ),
                 ),
-                Icon(Icons.play_circle_fill, color: colors[0], size: 36),
-              ]),
-              const SizedBox(height: 12),
-              Text(widget.scenario.description,
-                style: TextStyle(fontSize: 13, color: Colors.white60, height: 1.5)),
-              const SizedBox(height: 12),
-              Row(children: [
-                _chip('${widget.scenario.sourceCount} sources', colors[0]),
-                const SizedBox(width: 8),
-                ...widget.scenario.tags.take(2).map((t) =>
-                  Padding(padding: const EdgeInsets.only(right: 8), child: _chip(t, Colors.white24))),
-              ]),
-            ],
+                TextButton(
+                  onPressed: () => _openRun(run['run_id'], run['scenario_id']),
+                  child: Text('View →',
+                      style: GoogleFonts.inter(
+                          color: AppColors.stateCritical, fontSize: 12, fontWeight: FontWeight.w500)),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildManualScenarios() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Text('Scenarios',
+              style: GoogleFonts.inter(
+                  color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w500)),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            children: _scenarios.asMap().entries.map((e) {
+              final idx = e.key;
+              final s = e.value;
+              return Column(
+                children: [
+                  InkWell(
+                    onTap: () => _startManualScenario(s),
+                    borderRadius: idx == 0
+                        ? const BorderRadius.vertical(top: Radius.circular(8))
+                        : idx == _scenarios.length - 1
+                            ? const BorderRadius.vertical(bottom: Radius.circular(8))
+                            : BorderRadius.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      child: Row(
+                        children: [
+                          Icon(AppColors.scenarioIcon(s.id),
+                              color: AppColors.actionPrimary, size: 18),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                          color: AppColors.surface2,
+                                          borderRadius: BorderRadius.circular(3),
+                                          border: Border.all(color: AppColors.border)),
+                                      child: Text(s.id,
+                                          style: GoogleFonts.inter(
+                                              color: AppColors.textSecondary,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600)),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(s.title,
+                                          style: GoogleFonts.inter(
+                                              color: AppColors.textPrimary,
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500),
+                                          overflow: TextOverflow.ellipsis),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 6,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                          border: Border.all(color: AppColors.border),
+                                          borderRadius: BorderRadius.circular(20)),
+                                      child: Text('${s.sourceCount} sources',
+                                          style: GoogleFonts.inter(
+                                              color: AppColors.textMuted, fontSize: 10)),
+                                    ),
+                                    ...s.tags.map((t) => Container(
+                                          padding:
+                                              const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                              border: Border.all(color: AppColors.border),
+                                              borderRadius: BorderRadius.circular(20)),
+                                          child: Text(t,
+                                              style: GoogleFonts.inter(
+                                                  color: AppColors.textMuted, fontSize: 10)),
+                                        )),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.play_arrow_rounded,
+                              color: AppColors.actionPrimary, size: 20),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (idx < _scenarios.length - 1)
+                    const Divider(height: 1, color: AppColors.border),
+                ],
+              );
+            }).toList(),
           ),
         ),
-      ),
+      ],
     );
   }
 
-  Widget _chip(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
-      ),
-      child: Text(label,
-        style: TextStyle(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w500)),
+  Widget _buildRecentRuns() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Text('Recent Runs',
+              style: GoogleFonts.inter(
+                  color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w500)),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            children: _latestRuns.map((r) {
+              final isAuto = r['trigger_type'] == 'autonomous';
+              final isComplete = r['phase'] == 'completed';
+              final dt = DateTime.parse(r['started_at'] ?? DateTime.now().toIso8601String());
+
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    child: Row(
+                      children: [
+                        // Scenario ID + trigger chip
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                              color: AppColors.surface2,
+                              border: Border.all(color: AppColors.border),
+                              borderRadius: BorderRadius.circular(3)),
+                          child: Text(r['scenario_id'] ?? '',
+                              style: GoogleFonts.inter(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                        const SizedBox(width: 6),
+                        if (isAuto)
+                          StatusPill(
+                              label: 'auto',
+                              color: AppColors.stateCritical,
+                              tint: AppColors.tintCritical),
+                        const SizedBox(width: 8),
+                        // Phase
+                        StatusPill(
+                          label: isComplete ? 'Completed' : 'Running',
+                          color: isComplete ? AppColors.stateOk : AppColors.stateWarn,
+                          tint: isComplete ? AppColors.tintOk : AppColors.tintWarn,
+                        ),
+                        const Spacer(),
+                        Text(timeAgo(dt),
+                            style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                  if (r != _latestRuns.last) const Divider(height: 1, color: AppColors.border),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ],
     );
+  }
+
+  Future<void> _startManualScenario(Scenario scenario) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.actionPrimary)),
+    );
+
+    final runId = await _api.startRun(scenario.id);
+    if (mounted) Navigator.of(context).pop();
+
+    if (runId != null) {
+      _openRun(runId, scenario.id);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to start scenario'), backgroundColor: AppColors.stateCritical));
+    }
+  }
+
+  void _openRun(String runId, String scenarioId) {
+    final scenario = _scenarios.firstWhere((s) => s.id == scenarioId,
+        orElse: () => Scenario(id: scenarioId, title: 'Scenario $scenarioId', description: '', sourceCount: 0));
+    Navigator.of(context)
+        .push(MaterialPageRoute(
+          builder: (_) => LiveRunScreen(runId: runId, scenario: scenario),
+        ))
+        .then((_) => _fetchData());
   }
 }
-

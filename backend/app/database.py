@@ -28,7 +28,9 @@ CREATE TABLE IF NOT EXISTS runs (
     error           TEXT,
     state_before    TEXT,
     state_after     TEXT,
-    action_plan     TEXT
+    action_plan     TEXT,
+    trigger_type    TEXT DEFAULT 'manual',
+    trigger_reason  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS trace_events (
@@ -54,6 +56,11 @@ CREATE TABLE IF NOT EXISTS sandbox_snapshots (
     FOREIGN KEY (run_id) REFERENCES runs(run_id)
 );
 
+CREATE TABLE IF NOT EXISTS monitor_cooldowns (
+    scenario_id TEXT PRIMARY KEY,
+    last_triggered_at REAL
+);
+
 CREATE INDEX IF NOT EXISTS idx_trace_run ON trace_events(run_id);
 CREATE INDEX IF NOT EXISTS idx_snapshot_run ON sandbox_snapshots(run_id);
 """
@@ -71,9 +78,9 @@ async def init_db() -> None:
 async def create_run(run: RunSummary) -> None:
     async with aiosqlite.connect(_DB_PATH) as db:
         await db.execute(
-            """INSERT INTO runs (run_id, scenario_id, phase, started_at)
-               VALUES (?, ?, ?, ?)""",
-            (run.run_id, run.scenario_id, run.phase.value, run.started_at.isoformat()),
+            """INSERT INTO runs (run_id, scenario_id, phase, started_at, trigger_type, trigger_reason)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (run.run_id, run.scenario_id, run.phase.value, run.started_at.isoformat(), run.trigger_type, run.trigger_reason),
         )
         await db.commit()
 
@@ -83,6 +90,7 @@ async def update_run(run_id: str, **kwargs) -> None:
     allowed = {
         "phase", "completed_at", "total_latency_ms", "total_tokens_used",
         "total_cost_usd", "error", "state_before", "state_after", "action_plan",
+        "trigger_type", "trigger_reason"
     }
     parts, vals = [], []
     for k, v in kwargs.items():
@@ -105,6 +113,13 @@ async def get_run(run_id: str) -> dict | None:
         row = await cursor.fetchone()
         return dict(row) if row else None
 
+
+async def get_latest_runs(limit: int = 5) -> list[dict]:
+    async with aiosqlite.connect(_DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT * FROM runs ORDER BY started_at DESC LIMIT ?", (limit,))
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
 
 # ── Trace Events CRUD ────────────────────────────────────────────────────────
 

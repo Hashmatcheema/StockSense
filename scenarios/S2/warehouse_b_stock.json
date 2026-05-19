@@ -1,0 +1,10 @@
+{
+  "report_date": "2024-10-14",
+  "source": "Lahore Warehouse B",
+  "note": "Urgent: physical count shows major discrepancy",
+  "inventory": {
+    "SKU-AC-001": 8,
+    "SKU-WM-002": 45
+  },
+  "comment": "AC stock much lower than system shows. Possible theft or recording error."
+}

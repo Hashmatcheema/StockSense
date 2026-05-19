@@ -1,0 +1,3 @@
+sku,product_name,units_on_hand,reorder_point,monthly_velocity
+SKU-AC-001,Haier 1.0 Ton AC,120,25,22
+SKU-WM-002,Washing Machine,45,10,8

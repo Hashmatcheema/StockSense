@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'config/api_config.dart';
+import 'theme/app_theme.dart';
 import 'screens/scenarios_screen.dart';
+import 'screens/settings_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await ApiConfig.loadPersistedBase();
   runApp(const StockSenseApp());
 }
 
@@ -15,26 +21,36 @@ class StockSenseApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF0A0E21),
-        primaryColor: const Color(0xFF00BFA6),
+        scaffoldBackgroundColor: AppColors.bg,
+        cardColor: AppColors.surface,
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF00BFA6),
-          secondary: Color(0xFF7C4DFF),
-          surface: Color(0xFF141830),
+          surface: AppColors.surface,
+          primary: AppColors.actionPrimary,
+          secondary: AppColors.stateInfo,
+          error: AppColors.stateCritical,
         ),
         appBarTheme: AppBarTheme(
-          backgroundColor: const Color(0xFF0F1329),
+          backgroundColor: AppColors.bg,
+          foregroundColor: AppColors.textPrimary,
           elevation: 0,
-          titleTextStyle: TextStyle(
-            fontSize: 20,
+          scrolledUnderElevation: 0,
+          surfaceTintColor: Colors.transparent,
+          titleTextStyle: GoogleFonts.inter(
+            fontSize: 18,
             fontWeight: FontWeight.w600,
-            color: Colors.white,
+            color: AppColors.textPrimary,
           ),
-          iconTheme: const IconThemeData(color: Colors.white70),
+          iconTheme: const IconThemeData(color: AppColors.textSecondary),
         ),
-        textTheme: ThemeData.dark().textTheme,
+        textTheme: GoogleFonts.interTextTheme(
+          ThemeData.dark().textTheme,
+        ),
+        dividerColor: AppColors.border,
       ),
       home: const ScenariosScreen(),
+      routes: {
+        '/settings': (context) => const SettingsScreen(),
+      },
     );
   }
 }
