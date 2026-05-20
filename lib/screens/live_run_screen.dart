@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../config/api_config.dart';
 import '../models/scenario.dart';
 import '../models/trace_event.dart';
 import '../services/api_service.dart';
@@ -23,16 +25,20 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
   final SseService _sse = SseService();
   final ApiService _api = ApiService();
   final List<TraceEvent> _events = [];
-  final Set<int> _expanded = {};
+  final Set<String> _expanded = {};
   final Set<String> _seenIds = {};
   final ScrollController _scrollController = ScrollController();
   bool _done = false;
   int _totalTokens = 0;
   int _totalLatencyMs = 0;
   StreamSubscription<TraceEvent>? _sseSubscription;
-  DateTime? _firstEventTime;
   Timer? _timeoutTimer;
   bool _showTimeout = false;
+
+  // Batched SSE event flush — coalesces bursts into ≤4 setStates/sec.
+  final List<TraceEvent> _pendingEvents = [];
+  Timer? _flushTimer;
+  bool _shouldAutoScroll = true;
 
   // Action Plan (FR-6.2)
   Map<String, dynamic>? _actionPlan;
@@ -48,57 +54,80 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
       ..repeat(reverse: true);
     _connectSSE();
     // Start timeout timer for empty state
-    _timeoutTimer = Timer(const Duration(seconds: 20), () {
+    _timeoutTimer = Timer(Duration(seconds: ApiConfig.sseTimeoutSeconds), () {
       if (mounted && _events.isEmpty) {
         setState(() => _showTimeout = true);
       }
     });
   }
 
+  void _retryConnection() {
+    HapticFeedback.selectionClick();
+    _sseSubscription?.cancel();
+    _sse.disconnect();
+    setState(() {
+      _showTimeout = false;
+      _done = false;
+    });
+    _timeoutTimer?.cancel();
+    _timeoutTimer = Timer(Duration(seconds: ApiConfig.sseTimeoutSeconds), () {
+      if (mounted && _events.isEmpty) {
+        setState(() => _showTimeout = true);
+      }
+    });
+    _connectSSE();
+  }
+
   void _connectSSE() {
     final stream = _sse.connect(widget.runId);
     _sseSubscription = stream.listen(
       (event) {
-        if (mounted) {
-          // Deduplicate by event ID (A2 fix)
-          if (!_seenIds.add(event.id)) return;
-
-          setState(() {
-            _events.add(event);
-            _totalTokens += event.tokensUsed;
-            _totalLatencyMs += event.latencyMs;
-            _firstEventTime ??= DateTime.now();
-            _showTimeout = false;
-
-            // Check for plan_generated to fetch action plan (FR-6.2)
-            if (event.eventType == 'plan_generated') {
-              _fetchActionPlan();
-            }
-          });
-
-          // Auto-scroll to newest event
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (_scrollController.hasClients) {
-              _scrollController.animateTo(
-                _scrollController.position.maxScrollExtent,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOut,
-              );
-            }
-          });
+        if (!mounted) return;
+        // Deduplicate by event ID (A2 fix)
+        if (!_seenIds.add(event.id)) return;
+        _pendingEvents.add(event);
+        if (event.eventType == 'plan_generated') {
+          _fetchActionPlan();
         }
+        _flushTimer ??= Timer(const Duration(milliseconds: 250), _flushPending);
       },
       onDone: () {
+        _flushPending();
         if (mounted) {
           setState(() => _done = true);
-          // Fetch action plan on completion if we haven't already
           if (_actionPlan == null) _fetchActionPlan();
         }
       },
       onError: (_) {
+        _flushPending();
         if (mounted) setState(() => _done = true);
       },
     );
+  }
+
+  void _flushPending() {
+    _flushTimer = null;
+    if (!mounted || _pendingEvents.isEmpty) return;
+    final batch = List<TraceEvent>.from(_pendingEvents);
+    _pendingEvents.clear();
+    setState(() {
+      for (final e in batch) {
+        _events.add(e);
+        _totalTokens += e.tokensUsed;
+        _totalLatencyMs += e.latencyMs;
+      }
+      _showTimeout = false;
+    });
+    if (_shouldAutoScroll) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      });
+    }
   }
 
   Future<void> _fetchActionPlan() async {
@@ -134,6 +163,8 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
   @override
   void dispose() {
     _timeoutTimer?.cancel();
+    _flushTimer?.cancel();
+    _flushTimer = null;
     _pulseCtrl.dispose();
     _scrollController.dispose();
     _sseSubscription?.cancel();
@@ -148,7 +179,7 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: AppColors.bg,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -184,12 +215,16 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
   }
 
   Widget _buildStatsBar() {
-    const kCostPerMTok = 0.30;
-    final costUsd = _totalTokens / 1000000 * kCostPerMTok;
+    // Cost rate is fetched from /monitor/config and cached in ApiConfig so
+    // it matches the actual backend billing rate without a client rebuild.
+    final costUsd = _totalTokens / 1000000 * ApiConfig.geminiCostPerMTok;
 
     return Container(
-      color: const Color(0xFF111827),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(bottom: BorderSide(color: AppColors.border)),
+      ),
       child: Row(
         children: [
           _buildStat('LATENCY', '${_totalLatencyMs}ms'),
@@ -201,9 +236,7 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
           Text(
             _done ? 'COMPLETE' : 'RUNNING',
             style: TextStyle(
-              color: _done
-                  ? const Color(0xFF10B981)
-                  : const Color(0xFFF59E0B),
+              color: _done ? AppColors.stateOk : AppColors.stateWarn,
               fontSize: 11,
               fontWeight: FontWeight.bold,
               letterSpacing: 0.8,
@@ -219,11 +252,11 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: const TextStyle(
-                color: Color(0xFF6B7280), fontSize: 9, letterSpacing: 0.5)),
+            style: GoogleFonts.jetBrainsMono(
+                color: AppColors.textMuted, fontSize: 9, letterSpacing: 0.5)),
         Text(value,
-            style: const TextStyle(
-                color: Color(0xFFF9FAFB),
+            style: GoogleFonts.jetBrainsMono(
+                color: AppColors.textPrimary,
                 fontSize: 13,
                 fontWeight: FontWeight.w600)),
       ],
@@ -244,14 +277,29 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
             Text('Check your API URL in Settings',
                 style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 13)),
             const SizedBox(height: 16),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.settings_outlined, size: 16),
-              label: const Text('Open Settings'),
-              onPressed: () => Navigator.pushNamed(context, '/settings'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.actionPrimary,
-                side: const BorderSide(color: AppColors.actionPrimary),
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Retry'),
+                  onPressed: _retryConnection,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.actionPrimary,
+                    side: const BorderSide(color: AppColors.actionPrimary),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.settings_outlined, size: 16),
+                  label: const Text('Open Settings'),
+                  onPressed: () => Navigator.pushNamed(context, '/settings'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                    side: const BorderSide(color: AppColors.border),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -262,30 +310,77 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
       return const Center(child: CircularProgressIndicator(color: AppColors.actionPrimary));
     }
 
+    // Filter out empty events, then group consecutive same-agent/type events.
+    final visibleEvents = _events.where((e) =>
+        e.outputSummary.isNotEmpty ||
+        e.inputSummary.isNotEmpty ||
+        (e.detail != null && e.detail.toString() != '{}')).toList();
+
+    final groups = <List<TraceEvent>>[];
+    for (final e in visibleEvents) {
+      if (groups.isNotEmpty &&
+          groups.last.first.agentName == e.agentName &&
+          groups.last.first.eventType == e.eventType) {
+        groups.last.add(e);
+      } else {
+        groups.add([e]);
+      }
+    }
+
+    DateTime? firstTs;
+    if (_events.isNotEmpty) {
+      try { firstTs = DateTime.parse(_events.first.timestamp); } catch (_) {}
+    }
+
+    final itemCount = (_actionPlan != null ? 1 : 0) + groups.length;
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.all(12),
-      itemCount: (_actionPlan != null ? 1 : 0) + _events.length,
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: true,
+      itemCount: itemCount,
       itemBuilder: (ctx, i) {
-        if (_actionPlan != null && i == 0) {
-          return _buildActionPlanCard();
+        if (_actionPlan != null && i == 0) return _buildActionPlanCard();
+        final gi = _actionPlan != null ? i - 1 : i;
+        final group = groups[gi];
+
+        if (group.length == 1) {
+          final event = group[0];
+          return _TraceEventRow(
+            key: ValueKey(event.id),
+            event: event,
+            firstEventTimestamp: firstTs,
+            isExpanded: _expanded.contains(event.id),
+            onToggle: () {
+              HapticFeedback.selectionClick();
+              setState(() => _expanded.contains(event.id)
+                  ? _expanded.remove(event.id)
+                  : _expanded.add(event.id));
+            },
+          );
         }
-        final eventIdx = _actionPlan != null ? i - 1 : i;
-        final event = _events[eventIdx];
-        if (event.outputSummary.isEmpty &&
-            event.inputSummary.isEmpty &&
-            (event.detail == null || event.detail.toString() == '{}')) {
-          return const SizedBox.shrink();
-        }
-        return _TraceEventRow(
-          event: event,
-          firstEventTime: _firstEventTime,
-          isExpanded: _expanded.contains(eventIdx),
-          onToggle: () => setState(() {
-            _expanded.contains(eventIdx)
-                ? _expanded.remove(eventIdx)
-                : _expanded.add(eventIdx);
-          }),
+
+        // Grouped: show summary card with expand-to-see-all
+        final groupKey = 'group:${group[0].id}';
+        final isGroupExpanded = _expanded.contains(groupKey);
+        return _GroupedEventRow(
+          key: ValueKey(groupKey),
+          events: group,
+          firstEventTimestamp: firstTs,
+          isExpanded: isGroupExpanded,
+          expandedItems: _expanded,
+          onToggleGroup: () {
+            HapticFeedback.selectionClick();
+            setState(() => isGroupExpanded
+                ? _expanded.remove(groupKey)
+                : _expanded.add(groupKey));
+          },
+          onToggleItem: (id) {
+            HapticFeedback.selectionClick();
+            setState(() => _expanded.contains(id)
+                ? _expanded.remove(id)
+                : _expanded.add(id));
+          },
         );
       },
     );
@@ -405,68 +500,213 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
   }
 }
 
+String _elapsedLabel(String timestamp, DateTime? firstTs) {
+  if (firstTs == null) return '';
+  try {
+    final ts = DateTime.parse(timestamp);
+    final ms = ts.difference(firstTs).inMilliseconds.clamp(0, 999999);
+    if (ms < 1000) return '+${ms}ms';
+    return '+${(ms / 1000).toStringAsFixed(1)}s';
+  } catch (_) {
+    return '';
+  }
+}
+
+String _cleanSummary(String summary) {
+  // Strip long Windows/Unix file paths — keep the human-readable part.
+  return summary.replaceAllMapped(
+    RegExp(r'from [A-Z]:\\[^\s,]+|from /[^\s,]+'),
+    (m) => '',
+  ).trim();
+}
+
 class _TraceEventRow extends StatelessWidget {
   final TraceEvent event;
-  final DateTime? firstEventTime;
+  final DateTime? firstEventTimestamp;
   final bool isExpanded;
   final VoidCallback onToggle;
 
   const _TraceEventRow({
+    super.key,
     required this.event,
-    required this.firstEventTime,
+    required this.firstEventTimestamp,
     required this.isExpanded,
     required this.onToggle,
   });
 
-  String get _wallClock {
-    try {
-      final ts = DateTime.parse(event.timestamp);
-      final mm = ts.minute.toString().padLeft(2, '0');
-      final ss = ts.second.toString().padLeft(2, '0');
-      final ms = ts.millisecond.toString().padLeft(3, '0');
-      return '$mm:$ss.$ms';
-    } catch (_) {
-      return '';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final borderColor = AppColors.eventColor(event.eventType);
-
-    final subtitle = event.outputSummary.isNotEmpty
+    final rawSubtitle = event.outputSummary.isNotEmpty
         ? event.outputSummary
         : event.inputSummary.isNotEmpty
             ? event.inputSummary
             : event.eventType;
+    final subtitle = _cleanSummary(rawSubtitle);
+    final elapsed = _elapsedLabel(event.timestamp, firstEventTimestamp);
 
-    return GestureDetector(
-      onTap: onToggle,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 6),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: AppColors.border),
+    return Semantics(
+      label: '${event.agentName}: ${event.eventType} — $subtitle',
+      button: true,
+      child: GestureDetector(
+        onTap: onToggle,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 6),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: AppColors.border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(width: 4, color: borderColor),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(AppColors.agentIcon(event.agentName),
+                                size: 16, color: AppColors.textSecondary),
+                            const SizedBox(width: 6),
+                            Text(event.agentName,
+                                style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w500)),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                  color: AppColors.surface2,
+                                  borderRadius: BorderRadius.circular(4)),
+                              child: Text(event.eventType,
+                                  style: GoogleFonts.inter(
+                                      fontSize: 10, color: AppColors.textSecondary)),
+                            ),
+                            const Spacer(),
+                            Text(elapsed,
+                                style: GoogleFonts.jetBrainsMono(
+                                    fontSize: 10, color: AppColors.textMuted)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(subtitle,
+                            style: GoogleFonts.inter(
+                                fontSize: 12, color: AppColors.textSecondary),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis),
+                        if (isExpanded && event.detail != null) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface2,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              _formatDetail(event.detail),
+                              style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 11, color: AppColors.textSecondary),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-        clipBehavior: Clip.antiAlias,
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(width: 4, color: borderColor),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+      ),
+    );
+  }
+
+  String _formatDetail(dynamic detail) {
+    try {
+      const encoder = JsonEncoder.withIndent('  ');
+      return encoder.convert(detail);
+    } catch (_) {
+      return detail.toString();
+    }
+  }
+}
+
+/// Collapsed summary card for consecutive same-agent/type events.
+class _GroupedEventRow extends StatelessWidget {
+  final List<TraceEvent> events;
+  final DateTime? firstEventTimestamp;
+  final bool isExpanded;
+  final Set<String> expandedItems;
+  final VoidCallback onToggleGroup;
+  final void Function(String id) onToggleItem;
+
+  const _GroupedEventRow({
+    super.key,
+    required this.events,
+    required this.firstEventTimestamp,
+    required this.isExpanded,
+    required this.expandedItems,
+    required this.onToggleGroup,
+    required this.onToggleItem,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final first = events.first;
+    final borderColor = AppColors.eventColor(first.eventType);
+    final elapsed = _elapsedLabel(first.timestamp, firstEventTimestamp);
+
+    // Build a one-line summary of what the group contains.
+    final summaries = events.map((e) {
+      final raw = e.outputSummary.isNotEmpty ? e.outputSummary : e.inputSummary;
+      return _cleanSummary(raw);
+    }).where((s) => s.isNotEmpty).toList();
+
+    // Find the common prefix, or just show the count
+    String groupSummary;
+    if (summaries.length == events.length) {
+      // e.g. "source_accepted ×5" with first item's summary
+      groupSummary = summaries.first;
+    } else {
+      groupSummary = first.eventType;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: 4, color: borderColor),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Group header — tap to expand/collapse
+                  InkWell(
+                    onTap: onToggleGroup,
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Row(
                         children: [
-                          Icon(AppColors.agentIcon(event.agentName),
+                          Icon(AppColors.agentIcon(first.agentName),
                               size: 16, color: AppColors.textSecondary),
                           const SizedBox(width: 6),
-                          Text(event.agentName,
+                          Text(first.agentName,
                               style: GoogleFonts.inter(
                                   fontSize: 13,
                                   color: AppColors.textPrimary,
@@ -477,42 +717,104 @@ class _TraceEventRow extends StatelessWidget {
                             decoration: BoxDecoration(
                                 color: AppColors.surface2,
                                 borderRadius: BorderRadius.circular(4)),
-                            child: Text(event.eventType,
+                            child: Text(first.eventType,
                                 style: GoogleFonts.inter(
                                     fontSize: 10, color: AppColors.textSecondary)),
                           ),
+                          const SizedBox(width: 6),
+                          // Count badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: borderColor.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text('×${events.length}',
+                                style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    color: borderColor,
+                                    fontWeight: FontWeight.w600)),
+                          ),
                           const Spacer(),
-                          Text(_wallClock,
+                          Text(elapsed,
                               style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 11, color: AppColors.textMuted)),
+                                  fontSize: 10, color: AppColors.textMuted)),
+                          const SizedBox(width: 6),
+                          Icon(
+                            isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                            size: 16,
+                            color: AppColors.textMuted,
+                          ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(subtitle,
-                          style: GoogleFonts.inter(
-                              fontSize: 12, color: AppColors.textSecondary)),
-                      if (isExpanded && event.detail != null) ...[
-                        const SizedBox(height: 8),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface2,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            _formatDetail(event.detail),
-                            style: GoogleFonts.jetBrainsMono(
-                                fontSize: 11, color: AppColors.textSecondary),
-                          ),
-                        ),
-                      ],
-                    ],
+                    ),
                   ),
-                ),
+                  // Summary line when collapsed
+                  if (!isExpanded)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                      child: Text(groupSummary,
+                          style: GoogleFonts.inter(
+                              fontSize: 12, color: AppColors.textSecondary),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                  // Individual items when expanded
+                  if (isExpanded)
+                    ...events.map((e) {
+                      final rawSub = e.outputSummary.isNotEmpty ? e.outputSummary : e.inputSummary;
+                      final sub = _cleanSummary(rawSub);
+                      final itemElapsed = _elapsedLabel(e.timestamp, firstEventTimestamp);
+                      final isItemExpanded = expandedItems.contains(e.id);
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Divider(height: 1, color: AppColors.border),
+                          InkWell(
+                            onTap: () => onToggleItem(e.id),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(sub,
+                                        style: GoogleFonts.inter(
+                                            fontSize: 12, color: AppColors.textSecondary),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(itemElapsed,
+                                      style: GoogleFonts.jetBrainsMono(
+                                          fontSize: 10, color: AppColors.textMuted)),
+                                ],
+                              ),
+                            ),
+                          ),
+                          if (isItemExpanded && e.detail != null)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface2,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  _formatDetail(e.detail),
+                                  style: GoogleFonts.jetBrainsMono(
+                                      fontSize: 11, color: AppColors.textSecondary),
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    }),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

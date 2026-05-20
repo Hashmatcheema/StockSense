@@ -25,6 +25,7 @@ class _BeforeAfterScreenState extends State<BeforeAfterScreen> {
   Map<String, dynamic>? _runDetail;
   bool _loading = true;
   bool _error = false;
+  bool _isInProgress = false;
   bool _exporting = false;
 
   @override
@@ -35,14 +36,24 @@ class _BeforeAfterScreenState extends State<BeforeAfterScreen> {
 
   Future<void> _load() async {
     try {
-      final diff = await _api.getStateDiff(widget.runId);
-      final detail = await _api.getRunDetail(widget.runId);
+      // #22: Fetch both in parallel — they hit different endpoints.
+      final results = await Future.wait([
+        _api.getStateDiff(widget.runId),
+        _api.getRunDetail(widget.runId),
+      ]);
+      final diff = results[0] as StateDiff?;
+      final detail = results[1] as Map<String, dynamic>?;
+      // #24: Distinguish "run still in progress" (diff not ready yet) from
+      // a real network/parse failure (diff null AND run is completed/failed).
+      final phase = (detail?['run'] as Map<String, dynamic>?)?['phase'] as String?;
+      final runFinished = phase == 'completed' || phase == 'failed';
       if (mounted) {
         setState(() {
           _diff = diff;
           _runDetail = detail;
           _loading = false;
-          _error = diff == null;
+          _isInProgress = diff == null && !runFinished;
+          _error = diff == null && runFinished;
         });
       }
     } catch (_) {
@@ -83,7 +94,7 @@ class _BeforeAfterScreenState extends State<BeforeAfterScreen> {
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: AppColors.bg,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         title: Text('Before / After — ${widget.scenario.id}',
             style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
@@ -91,7 +102,7 @@ class _BeforeAfterScreenState extends State<BeforeAfterScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.actionPrimary))
-          : _error || _diff == null
+          : (_error || _isInProgress || _diff == null)
               ? _buildErrorState()
               : _buildContent(),
       bottomNavigationBar: _buildBottomBar(),
@@ -99,26 +110,60 @@ class _BeforeAfterScreenState extends State<BeforeAfterScreen> {
   }
 
   Widget _buildErrorState() {
+    // #24: Show different copy depending on whether the run is in-progress or
+    // a real network/parse failure occurred.
+    final isInProg = _isInProgress;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.hourglass_empty_outlined, color: AppColors.textMuted, size: 48),
+          Icon(
+            isInProg ? Icons.hourglass_empty_outlined : Icons.error_outline,
+            color: isInProg ? AppColors.textMuted : AppColors.stateCritical,
+            size: 48,
+          ),
           const SizedBox(height: 12),
-          Text('Run still in progress',
-              style: GoogleFonts.inter(color: AppColors.textPrimary, fontSize: 16)),
+          Text(
+            isInProg ? 'Run still in progress' : 'Failed to load results',
+            style: GoogleFonts.inter(color: AppColors.textPrimary, fontSize: 16),
+          ),
           const SizedBox(height: 8),
-          Text('Results will appear once the pipeline completes',
-              style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 13)),
+          Text(
+            isInProg
+                ? 'Results will appear once the pipeline completes'
+                : 'Check your connection and try again',
+            style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 13),
+          ),
           const SizedBox(height: 16),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.arrow_back, size: 16),
-            label: const Text('Back'),
-            onPressed: () => Navigator.of(context).pop(),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.actionPrimary,
-              side: const BorderSide(color: AppColors.actionPrimary),
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!isInProg)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Retry'),
+                    onPressed: () {
+                      setState(() { _loading = true; _error = false; _isInProgress = false; });
+                      _load();
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.actionPrimary,
+                      side: const BorderSide(color: AppColors.actionPrimary),
+                    ),
+                  ),
+                ),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.arrow_back, size: 16),
+                label: const Text('Back'),
+                onPressed: () => Navigator.of(context).pop(),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.actionPrimary,
+                  side: const BorderSide(color: AppColors.actionPrimary),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -222,13 +267,16 @@ class _BeforeAfterScreenState extends State<BeforeAfterScreen> {
     };
     final maxDelta = deltas.entries.reduce((a, b) => a.value > b.value ? a : b).key;
 
+    // Responsive grid: phone = 2 cols, tablet/landscape = 3, desktop = 4.
+    final width = MediaQuery.of(context).size.width;
+    final cols = width >= 1100 ? 4 : (width >= 700 ? 3 : 2);
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
+      crossAxisCount: cols,
       mainAxisSpacing: 8,
       crossAxisSpacing: 8,
-      childAspectRatio: 1.6,
+      childAspectRatio: 1.3,
       children: [
         _MetricCard(
           icon: Icons.warning_amber_rounded,
@@ -558,12 +606,21 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final cardColor = highlighted
+        ? (deltaPositive ? AppColors.tintOk : AppColors.tintCritical)
+        : AppColors.surface;
+    // When the card is already tinted, use a semi-transparent white badge
+    // so the delta tag doesn't double-stack the same tint.
+    final badgeColor = highlighted
+        ? Colors.white.withOpacity(0.55)
+        : (deltaPositive ? AppColors.tintOk : AppColors.tintCritical);
+
+    return Semantics(
+      label: '$label: was $before, now $after, $delta',
+      child: Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: highlighted
-            ? (deltaPositive ? AppColors.tintOk : AppColors.tintCritical)
-            : AppColors.surface,
+        color: cardColor,
         border: Border.all(color: AppColors.border),
         borderRadius: BorderRadius.circular(8),
       ),
@@ -586,14 +643,51 @@ class _MetricCard extends StatelessWidget {
               ),
             ],
           ),
-          Text('$before → $after',
-              style: GoogleFonts.inter(
-                  fontSize: 16, fontWeight: FontWeight.w600, color: afterColor),
-              overflow: TextOverflow.ellipsis),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 350),
+            transitionBuilder: (child, anim) => FadeTransition(
+              opacity: anim,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.15),
+                  end: Offset.zero,
+                ).animate(anim),
+                child: child,
+              ),
+            ),
+            child: Column(
+              key: ValueKey('$before→$after'),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(before,
+                    style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                        color: AppColors.textMuted,
+                        decoration: TextDecoration.lineThrough),
+                    overflow: TextOverflow.ellipsis),
+                Row(
+                  children: [
+                    const Icon(Icons.arrow_forward, size: 11, color: AppColors.textMuted),
+                    const SizedBox(width: 3),
+                    Expanded(
+                      child: Text(after,
+                          style: GoogleFonts.inter(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: afterColor),
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: deltaPositive ? AppColors.tintOk : AppColors.tintCritical,
+              color: badgeColor,
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(delta,
@@ -604,6 +698,7 @@ class _MetricCard extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }
