@@ -1,29 +1,30 @@
-scenario_id: S2
-name: "Conflicting Market Intelligence"
-description: >
-  Three sources report conflicting stock levels for SKU-AC-001.
-  A low-credibility news source attempts crisis spoofing.
-  Tests contradiction detection and confidence-based resolution.
 sources:
-  - file: warehouse_a_stock.csv
+  - file: khan_warehouse_s2.csv
     kind: csv
-    credibility_prior: 0.80
-  - file: warehouse_b_stock.json
-    kind: json
-    credibility_prior: 0.75
-  - file: news_crisis_spoof.html
-    kind: news_html
-    credibility_prior: 0.35
-  - file: supplier_email_karachi_cool.txt
-    kind: email
     credibility_prior: 0.85
-  - file: sales_dashboard_lahore.json
+    recency_days: 1
+  - file: sales_dashboard_s2.json
     kind: json
-    credibility_prior: 0.95
+    credibility_prior: 0.80
+    recency_days: 2
+  - file: supplier_email_s2.txt
+    kind: email
+    credibility_prior: 0.65
+    recency_days: 2
+  - file: news_crisis_spoof_s2.html
+    kind: news_html
+    credibility_prior: 0.25
+    recency_days: 1
+  - file: complaints_log_s2.json
+    kind: json
+    credibility_prior: 0.80
+    recency_days: 1
+
 constraints:
   budget_pkr: 3500000
-  lead_time_days: 5
-  urgency: high
+  lead_time_days: 7
+  urgency: medium
+
 thresholds:
-  stockout_risk_pct: 55
+  stockout_risk_pct: 40
   revenue_at_risk_pkr: 1500000

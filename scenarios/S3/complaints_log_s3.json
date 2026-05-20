@@ -1,0 +1,31 @@
+{
+  "generated_at": "2026-05-19T08:00:00",
+  "total_complaints": 11,
+  "category": "delivery_delay",
+  "product_sku": "SKU-FAN-24-HAV",
+  "severity": "high",
+  "escalation_status": "manager_notified",
+  "complaints": [
+    {
+      "id": "C-3001",
+      "customer": "Royal Fans Multan",
+      "days_overdue": 4,
+      "order_value_pkr": 175000,
+      "message": "14 ceiling fans urgently needed for housing society project"
+    },
+    {
+      "id": "C-3002",
+      "customer": "Cool Home Faisalabad",
+      "days_overdue": 3,
+      "order_value_pkr": 112500,
+      "message": "9 fans for commercial client, threatening contract cancellation"
+    },
+    {
+      "id": "C-3003",
+      "customer": "Air Plus Gujranwala",
+      "days_overdue": 5,
+      "order_value_pkr": 225000,
+      "message": "18 fans overdue, customer escalating to management"
+    }
+  ]
+}

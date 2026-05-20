@@ -60,6 +60,19 @@ def _parse_file(path: Path) -> str | dict | list:
         return text
 
 
+# ── Scenario id whitelist (path-traversal guard) ────────────────────────────
+
+VALID_SCENARIO_IDS: frozenset[str] = frozenset({"S1", "S2", "S3"})
+
+
+def validate_scenario_id(scenario_id: str) -> str:
+    """Reject anything not in the whitelist. Used by every code path that
+    builds a filesystem path or prompt input from a user-supplied scenario id."""
+    if scenario_id not in VALID_SCENARIO_IDS:
+        raise ValueError(f"Invalid scenario_id: {scenario_id!r}")
+    return scenario_id
+
+
 # ── Public API ───────────────────────────────────────────────────────────────
 
 def list_scenarios() -> list[ScenarioInfo]:
@@ -90,6 +103,7 @@ def list_scenarios() -> list[ScenarioInfo]:
 
 def load_sources(scenario_id: str) -> list[SourceDocument]:
     """Load and normalise all source files for a scenario (FR-1.1, FR-1.2)."""
+    validate_scenario_id(scenario_id)
     base = Path(settings.SCENARIOS_DIR) / scenario_id
     if not base.exists():
         raise FileNotFoundError(f"Scenario {scenario_id} not found at {base}")
@@ -119,6 +133,7 @@ def load_sources(scenario_id: str) -> list[SourceDocument]:
 
 def load_initial_state(scenario_id: str) -> BusinessState:
     """Load the pre-run business state for a scenario."""
+    validate_scenario_id(scenario_id)
     path = Path(settings.SCENARIOS_DIR) / scenario_id / "initial_state.json"
     if not path.exists():
         # Return a default state

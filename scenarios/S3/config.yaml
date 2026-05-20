@@ -1,29 +1,30 @@
-scenario_id: S3
-name: "Order Failure & Automated Recovery"
-description: >
-  Identical supply chain disruption to S1. The mock supplier API
-  fails on the first order attempt. System retries successfully.
-  Tests FR-4.3 (retry) and the recovery path.
 sources:
-  - file: khan_warehouse_oct.csv
+  - file: khan_warehouse_s3.csv
     kind: csv
-    credibility_prior: 0.80
-  - file: sales_dashboard_lahore.json
-    kind: json
-    credibility_prior: 0.95
-  - file: supplier_email_karachi_cool.txt
-    kind: email
     credibility_prior: 0.85
-  - file: complaints_log_oct.json
+    recency_days: 1
+  - file: sales_dashboard_s3.json
     kind: json
-    credibility_prior: 0.75
-  - file: news_fuel_prices.html
-    kind: news_html
+    credibility_prior: 0.80
+    recency_days: 1
+  - file: supplier_email_s3.txt
+    kind: email
     credibility_prior: 0.65
+    recency_days: 1
+  - file: alt_supplier_s3.json
+    kind: json
+    credibility_prior: 0.80
+    recency_days: 1
+  - file: complaints_log_s3.json
+    kind: json
+    credibility_prior: 0.80
+    recency_days: 1
+
 constraints:
   budget_pkr: 3500000
-  lead_time_days: 5
+  lead_time_days: 3
   urgency: critical
+
 thresholds:
-  stockout_risk_pct: 55
-  revenue_at_risk_pkr: 1500000
+  stockout_risk_pct: 70
+  revenue_at_risk_pkr: 2000000

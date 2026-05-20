@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import httpx
 from datetime import datetime, timezone, timedelta
 import yaml
@@ -7,6 +8,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.config import settings
 from app.scenario_loader import load_initial_state
 from app import database as db
+
+log = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler()
 
@@ -32,38 +35,38 @@ async def check_thresholds():
                 continue
 
             # DB-backed cooldown (survives reloads)
-            async with db.aiosqlite.connect(db._DB_PATH) as conn:
-                conn.row_factory = db.aiosqlite.Row
-                cursor = await conn.execute(
-                    "SELECT last_triggered_at FROM monitor_cooldowns WHERE scenario_id = ?",
-                    (scenario_id,)
-                )
-                row = await cursor.fetchone()
-                if row and (now - row["last_triggered_at"]) < 600:
-                    continue
+            conn = await db.get_conn()
+            conn.row_factory = db.aiosqlite.Row
+            cursor = await conn.execute(
+                "SELECT last_triggered_at FROM monitor_cooldowns WHERE scenario_id = ?",
+                (scenario_id,)
+            )
+            row = await cursor.fetchone()
+            if row and (now - row["last_triggered_at"]) < 600:
+                continue
 
             # Check for recent runs
-            async with db.aiosqlite.connect(db._DB_PATH) as conn:
-                conn.row_factory = db.aiosqlite.Row
-                cursor = await conn.execute(
-                    "SELECT started_at FROM runs WHERE scenario_id = ? ORDER BY started_at DESC LIMIT 1",
-                    (scenario_id,)
-                )
-                row = await cursor.fetchone()
-                if row:
-                    last_run_time = datetime.fromisoformat(row["started_at"])
-                    if last_run_time.tzinfo is None:
-                        last_run_time = last_run_time.replace(tzinfo=timezone.utc)
-                    if datetime.now(timezone.utc) - last_run_time < timedelta(minutes=10):
-                        continue
+            cursor = await conn.execute(
+                "SELECT started_at FROM runs WHERE scenario_id = ? ORDER BY started_at DESC LIMIT 1",
+                (scenario_id,)
+            )
+            row = await cursor.fetchone()
+            if row:
+                last_run_time = datetime.fromisoformat(row["started_at"])
+                if last_run_time.tzinfo is None:
+                    last_run_time = last_run_time.replace(tzinfo=timezone.utc)
+                if datetime.now(timezone.utc) - last_run_time < timedelta(minutes=10):
+                    continue
 
-            # Load state and config
+            # Load state and config — use to_thread so file I/O doesn't block the event loop
             config_path = Path(settings.SCENARIOS_DIR) / scenario_id / "config.yaml"
             if not config_path.exists():
                 continue
 
-            with open(config_path) as f:
-                config = yaml.safe_load(f)
+            def _read_config(path=config_path):
+                with open(path) as f:
+                    return yaml.safe_load(f) or {}
+            config = await asyncio.to_thread(_read_config)
 
             # Verify all source files exist
             sources = config.get("sources", [])
@@ -101,7 +104,7 @@ async def check_thresholds():
                 best_breach = breach
 
         except Exception as e:
-            print(f"Error checking threshold for {scenario_id}: {e}")
+            log.error("threshold check failed for %s: %s", scenario_id, e)
 
     if best_scenario and best_reason:
         import time as _t
@@ -109,14 +112,14 @@ async def check_thresholds():
         _last_trigger[best_scenario] = ts
 
         # Persist cooldown to DB so it survives reloads
-        async with db.aiosqlite.connect(db._DB_PATH) as conn:
-            await conn.execute(
-                "INSERT OR REPLACE INTO monitor_cooldowns (scenario_id, last_triggered_at) VALUES (?, ?)",
-                (best_scenario, ts)
-            )
-            await conn.commit()
+        conn = await db.get_conn()
+        await conn.execute(
+            "INSERT OR REPLACE INTO monitor_cooldowns (scenario_id, last_triggered_at) VALUES (?, ?)",
+            (best_scenario, ts)
+        )
+        await conn.commit()
 
-        print(f"AUTONOMOUS TRIGGER: {best_scenario} — reason: {best_reason}", flush=True)
+        log.info("autonomous trigger: scenario=%s reason=%s", best_scenario, best_reason)
         async with httpx.AsyncClient() as client:
             await client.post(
                 f"http://localhost:8000/scenarios/{best_scenario}/run",

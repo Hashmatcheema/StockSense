@@ -3,33 +3,33 @@ import 'package:flutter/material.dart';
 /// Design tokens for StockSense — semantic color system for supply-chain ops.
 /// All colors carry meaning (healthy / at-risk / failed), never used decoratively.
 class AppColors {
-  // Canvas — dark theme
-  static const bg = Color(0xFF0A0E1A);
-  static const surface = Color(0xFF111827);
-  static const surface2 = Color(0xFF1F2937);
-  static const border = Color(0xFF374151);
-  static const borderStrong = Color(0xFF4B5563);
+  // Canvas — light theme
+  static const bg = Color(0xFFF8F9FA);
+  static const surface = Color(0xFFFFFFFF);
+  static const surface2 = Color(0xFFF1F3F5);
+  static const border = Color(0xFFDEE2E6);
+  static const borderStrong = Color(0xFFADB5BD);
 
   // Text
-  static const textPrimary = Color(0xFFF9FAFB);
-  static const textSecondary = Color(0xFF9CA3AF);
+  static const textPrimary = Color(0xFF111827);
+  static const textSecondary = Color(0xFF374151);
   static const textMuted = Color(0xFF6B7280);
 
   // SEMANTIC — these carry meaning, never used decoratively
-  static const stateOk = Color(0xFF10B981);
-  static const stateWarn = Color(0xFFF59E0B);
-  static const stateCritical = Color(0xFFEF4444);
-  static const stateInfo = Color(0xFF3B82F6);
+  static const stateOk = Color(0xFF059669);
+  static const stateWarn = Color(0xFFD97706);
+  static const stateCritical = Color(0xFFDC2626);
+  static const stateInfo = Color(0xFF2563EB);
 
   // Action-only — never on text
-  static const actionPrimary = Color(0xFF10B981);
-  static const actionPrimaryHover = Color(0xFF059669);
+  static const actionPrimary = Color(0xFF059669);
+  static const actionPrimaryHover = Color(0xFF047857);
 
-  // Tints for backgrounds (cards/banners) — dark variants
-  static const tintOk = Color(0xFF052E16);
-  static const tintWarn = Color(0xFF451A03);
-  static const tintCritical = Color(0xFF450A0A);
-  static const tintInfo = Color(0xFF1E3A8A);
+  // Tints for backgrounds (cards/banners) — light variants
+  static const tintOk = Color(0xFFD1FAE5);
+  static const tintWarn = Color(0xFFFEF3C7);
+  static const tintCritical = Color(0xFFFEE2E2);
+  static const tintInfo = Color(0xFFDBEAFE);
 
   /// Semantic color for trace event left border based on event_type.
   static Color eventColor(String eventType) {
@@ -38,7 +38,7 @@ class AppColors {
       case 'source_accepted':
         return stateOk;
       case 'action_executed':
-        return stateOk; // Could check status detail for failures
+        return stateOk;
       case 'filtered_out':
       case 'action_retried':
       case 'conflict_resolved':
@@ -135,16 +135,28 @@ class StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: tint,
-        border: Border.all(color: color),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      child: Text(
-        label,
-        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w500),
+    // Darken the label one step beyond the border colour when sitting on a
+    // tinted background — fixes WCAG-AA contrast failures we saw on the
+    // light tint variants (tintOk/tintWarn/tintCritical).
+    final hsl = HSLColor.fromColor(color);
+    final textColor = tint == null
+        ? color
+        : hsl.withLightness((hsl.lightness * 0.7).clamp(0.0, 1.0)).toColor();
+
+    return Semantics(
+      label: label,
+      excludeSemantics: true,
+      child: Container(
+        decoration: BoxDecoration(
+          color: tint,
+          border: Border.all(color: color),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        child: Text(
+          label,
+          style: TextStyle(color: textColor, fontSize: 10, fontWeight: FontWeight.w600),
+        ),
       ),
     );
   }

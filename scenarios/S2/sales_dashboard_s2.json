@@ -1,0 +1,18 @@
+{
+  "report_date": "2026-05-19",
+  "store": "Khan Traders Lahore",
+  "inventory_snapshot": {
+    "SKU-AC-12K-HAI": {
+      "system_count": 180,
+      "physical_count_pending": true,
+      "note": "Pre-delivery count from last sync — 36h data lag"
+    }
+  },
+  "sales_last_7_days": {
+    "SKU-AC-12K-HAI": {
+      "units_sold": 38,
+      "daily_avg": 5.4
+    }
+  },
+  "data_sync_lag_hours": 36
+}

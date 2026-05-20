@@ -1,0 +1,32 @@
+{
+  "generated_at": "2026-05-19T08:00:00",
+  "period": "2026-05-12 to 2026-05-19",
+  "total_complaints": 18,
+  "category": "delivery_delay",
+  "product_sku": "SKU-AC-12K-HAI",
+  "complaints": [
+    {
+      "id": "C-1001",
+      "customer": "Rao Electronics Faisalabad",
+      "days_overdue": 3,
+      "order_value_pkr": 286000,
+      "message": "AC units not delivered, summer season has started"
+    },
+    {
+      "id": "C-1002",
+      "customer": "City Appliances Multan",
+      "days_overdue": 5,
+      "order_value_pkr": 429000,
+      "message": "Promised delivery date missed twice with no update"
+    },
+    {
+      "id": "C-1003",
+      "customer": "National Traders Gujranwala",
+      "days_overdue": 2,
+      "order_value_pkr": 572000,
+      "message": "4 ACs overdue for B2B client order, threatening cancellation"
+    }
+  ],
+  "estimated_churn_risk_pkr": 3200000,
+  "severity": "high"
+}

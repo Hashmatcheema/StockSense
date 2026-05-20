@@ -1,0 +1,5 @@
+{
+  "response": "{\"stockout_risk_pct\": 65, \"revenue_at_risk_pkr\": 3200000, \"days_of_stock_remaining\": 4, \"customers_affected\": 31, \"primary_threat\": \"Critical AC stockout in 4 days with primary supplier Karachi Cool Systems silent for 5 days during peak summer demand\", \"urgency\": \"critical\"}",
+  "latency_ms": 520,
+  "tokens_used": 220
+}

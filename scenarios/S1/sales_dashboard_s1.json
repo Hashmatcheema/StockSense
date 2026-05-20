@@ -1,0 +1,25 @@
+{
+  "report_date": "2026-05-19",
+  "period": "last_7_days",
+  "store": "Khan Traders Lahore",
+  "top_sellers": [
+    {
+      "sku": "SKU-AC-12K-HAI",
+      "product": "Air Conditioner 1.0 Ton Haier",
+      "units_sold": 46,
+      "daily_avg": 6.6,
+      "trend_vs_last_month": "+45%"
+    },
+    {
+      "sku": "SKU-WM-7KG-SAM",
+      "product": "Washing Machine 7kg Samsung",
+      "units_sold": 12,
+      "daily_avg": 1.7,
+      "trend_vs_last_month": "+8%"
+    }
+  ],
+  "delivery_complaints": 18,
+  "complaint_reason_top": "AC delivery delayed beyond promised date",
+  "overall_revenue_pkr": 8750000,
+  "customers_at_risk": 31
+}

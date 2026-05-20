@@ -1,0 +1,5 @@
+{
+  "response": "{\"signals\": [{\"kind\": \"stock_level\", \"sku\": \"SKU-AC-12K-HAI\", \"metric\": \"ac_inventory_units\", \"value\": 180, \"delta_vs_baseline_pct\": -18.2, \"rationale\": \"Sales dashboard system count shows 180 units — 36h data lag means delivery not yet reflected\"}, {\"kind\": \"sales_change\", \"sku\": \"SKU-AC-12K-HAI\", \"metric\": \"daily_ac_sales_velocity\", \"value\": 5.4, \"delta_vs_baseline_pct\": 30.0, \"rationale\": \"AC sales at 5.4 units per day over last 7 days — elevated summer demand\"}]}",
+  "latency_ms": 390,
+  "tokens_used": 198
+}

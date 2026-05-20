@@ -1,0 +1,6 @@
+{
+  "prompt": "dummy",
+  "response": "{\"signals\": [{\"kind\": \"complaint_cluster\", \"sku\": null, \"metric\": \"complaint_count\", \"value\": 47, \"delta_vs_baseline_pct\": 15.0, \"rationale\": \"Delayed delivery complaints are escalating.\"}]}",
+  "latency_ms": 150,
+  "tokens_used": 200
+}

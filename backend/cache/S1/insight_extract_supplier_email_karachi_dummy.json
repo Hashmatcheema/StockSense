@@ -1,0 +1,5 @@
+{
+  "response": "{\"signals\": [{\"kind\": \"supplier_status\", \"sku\": null, \"metric\": \"supplier_silence_days\", \"value\": 5, \"delta_vs_baseline_pct\": null, \"rationale\": \"Karachi Cool Systems unresponsive for 5 business days — third follow-up ignored\"}]}",
+  "latency_ms": 290,
+  "tokens_used": 170
+}

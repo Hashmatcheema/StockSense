@@ -11,6 +11,11 @@ _ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(_ENV_PATH)
 
 
+from contextvars import ContextVar
+
+offline_mode_var: ContextVar[bool] = ContextVar("offline_mode", default=False)
+
+
 class Settings:
     """Centralised settings read from environment variables."""
 
@@ -29,6 +34,19 @@ class Settings:
     MAX_RETRY_ATTEMPTS: int = 1
     MAX_SUBSTITUTION_ATTEMPTS: int = 1
 
+    # Security
+    API_KEY: str = os.getenv("API_KEY", "")
+    # Default to localhost-only origins; set CORS_ORIGINS=* in .env for dev convenience.
+    CORS_ORIGINS: list[str] = [
+        o.strip() for o in os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:8000,http://localhost:3000,http://127.0.0.1:8000"
+        ).split(",") if o.strip()
+    ]
+
+    # Branding — surfaced to the Flutter AppBar via /monitor/config
+    COMPANY_NAME: str = os.getenv("COMPANY_NAME", "Khan Traders · Lahore")
+
     # Server
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8000"))
@@ -39,6 +57,23 @@ class Settings:
     # Offline / cache
     OFFLINE_MODE: bool = os.getenv("OFFLINE_MODE", "false").lower() == "true"
     CACHE_DIR: str = str(Path(__file__).resolve().parent.parent / "cache")
+    # When true, the cache_manager will reuse a cached Gemini response on
+    # repeated prompts even in live mode — saves spend on demo replays. Set
+    # to "false" if you want to force every call to hit Gemini.
+    LIVE_CACHE: bool = os.getenv("LIVE_CACHE", "true").lower() == "true"
+
+    # Pricing — surfaced to the Flutter app via /monitor/config so the
+    # cost-per-million-tokens used in the live-run stats bar matches the
+    # actual model billing rate without a client rebuild.
+    GEMINI_COST_PER_MTOK: float = float(os.getenv("GEMINI_COST_PER_MTOK", "0.15"))
+
+    # App version (surfaced to Settings → About)
+    APP_VERSION: str = os.getenv("APP_VERSION", "1.0.0")
+
+    @property
+    def is_offline(self) -> bool:
+        return offline_mode_var.get() or self.OFFLINE_MODE
 
 
 settings = Settings()
+

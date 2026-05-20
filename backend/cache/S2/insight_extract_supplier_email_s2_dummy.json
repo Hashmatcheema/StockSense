@@ -1,0 +1,5 @@
+{
+  "response": "{\"signals\": [{\"kind\": \"supplier_status\", \"sku\": null, \"metric\": \"supplier_delivery_confirmed\", \"value\": 60, \"delta_vs_baseline_pct\": null, \"rationale\": \"Karachi Cool confirmed delivery of 60 AC units on 2026-05-17 — supplier active and responsive\"}]}",
+  "latency_ms": 280,
+  "tokens_used": 165
+}

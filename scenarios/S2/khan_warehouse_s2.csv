@@ -1,0 +1,4 @@
+sku,product_name,units_on_hand,reorder_point,unit_cost_pkr,last_updated,notes
+SKU-AC-12K-HAI,Air Conditioner 1.0 Ton Haier,240,50,143000,2026-05-19,Includes 60-unit Karachi Cool delivery received 2026-05-17
+SKU-WM-7KG-SAM,Washing Machine 7kg Samsung,52,20,85000,2026-05-19,
+SKU-RF-14CF-PEL,Refrigerator 14 Cu.ft PEL,70,30,95000,2026-05-19,

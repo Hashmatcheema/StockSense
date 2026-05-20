@@ -1,0 +1,5 @@
+{
+  "response": "{\"signals\": [{\"kind\": \"stock_level\", \"sku\": \"SKU-FAN-24-HAV\", \"metric\": \"fan_inventory_units\", \"value\": 8, \"delta_vs_baseline_pct\": -73.3, \"rationale\": \"Critically low ceiling fan stock — 8 units vs 30-unit reorder point, 2.6 days of stock remaining\"}]}",
+  "latency_ms": 440,
+  "tokens_used": 208
+}

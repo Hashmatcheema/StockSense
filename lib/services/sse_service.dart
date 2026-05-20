@@ -8,73 +8,100 @@ import '../models/trace_event.dart';
 class SseService {
   http.Client? _client;
   StreamController<TraceEvent>? _controller;
+  StreamSubscription<String>? _httpSub;
   bool _isDone = false;
+  bool _disposed = false;
 
   /// Open an SSE connection and return a stream of TraceEvents.
   Stream<TraceEvent> connect(String runId) {
+    // Tear down any prior connection cleanly before starting a new one.
+    disconnect();
+
     _isDone = false;
-    
-    // If the previous controller is still open, close it cleanly
-    if (_controller != null && !_controller!.isClosed) {
-      _controller!.close();
-    }
-    // Create a fresh controller for this connection
-    _controller = StreamController<TraceEvent>.broadcast();
+    _disposed = false;
     _client = http.Client();
+    _controller = StreamController<TraceEvent>(
+      onCancel: disconnect,
+    );
 
     _startListening(runId);
-
     return _controller!.stream;
   }
 
   Future<void> _startListening(String runId) async {
+    final client = _client;
+    final controller = _controller;
+    if (client == null || controller == null) return;
+
     try {
       final request = http.Request('GET', Uri.parse(ApiConfig.runEvents(runId)));
       request.headers['Accept'] = 'text/event-stream';
       request.headers['Cache-Control'] = 'no-cache';
+      final apiKey = ApiConfig.apiKey;
+      if (apiKey.isNotEmpty) request.headers['X-API-Key'] = apiKey;
 
-      final response = await _client!.send(request);
-      final stream = response.stream.transform(utf8.decoder);
+      final response = await client.send(request);
+      if (_disposed) return;
 
       String buffer = '';
+      // Cap buffer to protect against runaway streams.
+      const maxBuffer = 1024 * 1024; // 1 MB
 
-      await for (final chunk in stream) {
-        buffer += chunk;
+      _httpSub = response.stream.transform(utf8.decoder).listen(
+        (chunk) {
+          if (_disposed) return;
+          buffer += chunk;
+          if (buffer.length > maxBuffer) {
+            buffer = buffer.substring(buffer.length - maxBuffer);
+          }
 
-        // Parse SSE frames
-        while (buffer.contains('\n\n')) {
-          final idx = buffer.indexOf('\n\n');
-          final frame = buffer.substring(0, idx);
-          buffer = buffer.substring(idx + 2);
+          while (buffer.contains('\n\n')) {
+            final idx = buffer.indexOf('\n\n');
+            final frame = buffer.substring(0, idx);
+            buffer = buffer.substring(idx + 2);
 
-          for (final line in frame.split('\n')) {
-            if (line.startsWith('data: ')) {
-              final jsonStr = line.substring(6);
-              try {
-                final json = jsonDecode(jsonStr) as Map<String, dynamic>;
-                _controller?.add(TraceEvent.fromJson(json));
-              } catch (_) {}
-            } else if (line.startsWith('event: done')) {
-              _isDone = true;
-              if (_controller != null && !_controller!.isClosed) _controller!.close();
-              return;
+            for (final line in frame.split('\n')) {
+              if (line.startsWith('data: ')) {
+                final jsonStr = line.substring(6);
+                try {
+                  final json = jsonDecode(jsonStr) as Map<String, dynamic>;
+                  if (!controller.isClosed) {
+                    controller.add(TraceEvent.fromJson(json));
+                  }
+                } catch (_) {}
+              } else if (line.startsWith('event: done')) {
+                _isDone = true;
+                disconnect();
+                return;
+              }
             }
           }
-        }
-      }
+        },
+        onError: (e) {
+          if (!controller.isClosed) controller.addError(e);
+          disconnect();
+        },
+        onDone: () => disconnect(),
+        cancelOnError: true,
+      );
     } catch (e) {
-      if (_controller != null && !_controller!.isClosed) _controller!.addError(e);
-    } finally {
-      if (!_isDone && _controller != null && !_controller!.isClosed) _controller!.close();
+      if (!controller.isClosed) controller.addError(e);
+      disconnect();
     }
   }
 
   bool get isDone => _isDone;
 
+  /// Idempotent teardown. Safe to call multiple times.
   void disconnect() {
+    if (_disposed) return;
+    _disposed = true;
+    _httpSub?.cancel();
+    _httpSub = null;
+    final c = _controller;
+    _controller = null;
+    if (c != null && !c.isClosed) c.close();
     _client?.close();
-    if (!(_controller?.isClosed ?? true)) {
-      _controller?.close();
-    }
+    _client = null;
   }
 }

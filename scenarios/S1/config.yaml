@@ -1,40 +1,34 @@
-scenario_id: S1
-name: "Supply Chain Disruption — Happy Path"
-description: >
-  Karachi Cool Imports has gone silent for 9 days. Port congestion and 
-  transporter strikes are delaying the main AC consignment. Fuel prices 
-  just rose Rs 8/litre. Stockout risk is critical.
 sources:
-  - file: khan_warehouse_oct.csv
+  - file: khan_warehouse_s1.csv
     kind: csv
-    credibility_prior: 0.80
-    recency_days: 2
-  - file: sales_dashboard_lahore.json
-    kind: json
-    credibility_prior: 0.95
-    recency_days: 2
-  - file: supplier_email_karachi_cool.txt
-    kind: email
     credibility_prior: 0.85
-    recency_days: 2
-  - file: complaints_log_oct.json
+    recency_days: 1
+  - file: sales_dashboard_s1.json
     kind: json
-    credibility_prior: 0.75
-    recency_days: 2
-  - file: news_fuel_prices.html
-    kind: news_html
+    credibility_prior: 0.80
+    recency_days: 1
+  - file: supplier_email_karachi.txt
+    kind: email
     credibility_prior: 0.65
-    recency_days: 18
-  - file: news_transport_strike.mhtml
-    kind: news_mhtml
-    credibility_prior: 0.70
+    recency_days: 5
+  - file: complaints_log_s1.json
+    kind: json
+    credibility_prior: 0.80
+    recency_days: 1
+  - file: news_fuel_prices_s1.html
+    kind: news_html
+    credibility_prior: 0.45
     recency_days: 2
+  - file: stale_supplier_report.csv
+    kind: csv
+    credibility_prior: 0.85
+    recency_days: 20
+
 constraints:
   budget_pkr: 3500000
   lead_time_days: 5
   urgency: critical
-  rate_limit_actions_per_minute: 10
+
 thresholds:
   stockout_risk_pct: 55
-  supplier_silent_days: 7
-  revenue_at_risk_pkr: 1500000
+  revenue_at_risk_pkr: 2000000

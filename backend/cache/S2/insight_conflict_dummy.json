@@ -1,0 +1,5 @@
+{
+  "response": "{\"winning_signal_index\": 0, \"confidence\": 0.78, \"reason\": \"Warehouse CSV (credibility 0.85) corroborated by Karachi Cool delivery confirmation email — stock at 240 units. Sales dashboard lag of 36h explains discrepancy. News source (credibility 0.25) disqualified — score below 0.60 minimum threshold.\"}",
+  "latency_ms": 380,
+  "tokens_used": 195
+}

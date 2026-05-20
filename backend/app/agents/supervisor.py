@@ -35,7 +35,7 @@ class SupervisorAgent(BaseAgent):
 
         # 2. Insight
         await db.update_run(self.run_id, phase=RunPhase.INSIGHT.value)
-        insight = InsightAgent(self.run_id)
+        insight = InsightAgent(self.run_id, scenario_id=scenario_id)
         insight_result = await insight.run(accepted)
 
         # 3. Planning — pass scenario_id for constraints loading
@@ -70,7 +70,7 @@ class SupervisorAgent(BaseAgent):
         await self.emit_event("agent_end",
             output_summary=f"Pipeline complete in {total_ms}ms, {total_tokens} tokens",
             latency_ms=total_ms,
-            tokens_used=total_tokens,
+            tokens_used=0,
             detail={"total_latency_ms": total_ms, "total_tokens": total_tokens})
 
         await trace_logger.emit_done(self.run_id)

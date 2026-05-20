@@ -1,0 +1,5 @@
+{
+  "response": "{\"stockout_risk_pct\": 20, \"revenue_at_risk_pkr\": 520000, \"days_of_stock_remaining\": 44, \"customers_affected\": 6, \"primary_threat\": \"Pre-delivery complaints may indicate residual fulfilment gaps despite new 240-unit stock level\", \"urgency\": \"medium\"}",
+  "latency_ms": 490,
+  "tokens_used": 215
+}

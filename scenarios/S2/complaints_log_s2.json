@@ -1,0 +1,22 @@
+{
+  "generated_at": "2026-05-19T08:00:00",
+  "total_complaints": 18,
+  "category": "delivery_delay",
+  "product_sku": "SKU-AC-12K-HAI",
+  "severity": "medium",
+  "note": "Complaints originated before Karachi Cool delivery on 2026-05-17. Situation may have resolved with new stock.",
+  "complaints": [
+    {
+      "id": "C-2001",
+      "customer": "Rao Electronics Faisalabad",
+      "days_overdue": 2,
+      "order_value_pkr": 286000
+    },
+    {
+      "id": "C-2002",
+      "customer": "City Appliances Multan",
+      "days_overdue": 3,
+      "order_value_pkr": 429000
+    }
+  ]
+}

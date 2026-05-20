@@ -1,0 +1,5 @@
+{
+  "response": "{\"signals\": [{\"kind\": \"stock_level\", \"sku\": \"SKU-AC-12K-HAI\", \"metric\": \"ac_inventory_units\", \"value\": 22, \"delta_vs_baseline_pct\": -82.0, \"rationale\": \"Critical low AC stock at Khan warehouse — only 22 units remain against reorder point of 50\"}]}",
+  "latency_ms": 450,
+  "tokens_used": 210
+}

@@ -1,0 +1,20 @@
+{
+  "report_date": "2026-05-19",
+  "store": "Khan Traders Lahore",
+  "open_orders": [
+    {
+      "sku": "SKU-FAN-24-HAV",
+      "product": "Ceiling Fan 56-inch Havells",
+      "total_units_ordered": 34,
+      "customers_affected": 19,
+      "oldest_order_date": "2026-05-14"
+    }
+  ],
+  "sales_last_7_days": {
+    "SKU-FAN-24-HAV": {
+      "units_sold": 22,
+      "daily_avg": 3.1
+    }
+  },
+  "stockout_eta_days": 2.6
+}

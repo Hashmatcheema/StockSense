@@ -1,0 +1,5 @@
+{
+  "response": "{\"signals\": [{\"kind\": \"stock_level\", \"sku\": \"SKU-AC-12K-HAI\", \"metric\": \"ac_inventory_units\", \"value\": 240, \"delta_vs_baseline_pct\": 9.1, \"rationale\": \"Warehouse CSV confirms 240 units including 60-unit Karachi Cool delivery received 2026-05-17\"}]}",
+  "latency_ms": 420,
+  "tokens_used": 205
+}

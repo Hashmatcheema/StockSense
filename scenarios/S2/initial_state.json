@@ -1,27 +1,23 @@
 {
   "inventory": {
-    "SKU-AC-001": 120,
-    "SKU-WM-002": 45,
-    "SKU-RF-003": 200,
-    "SKU-TV-004": 30,
-    "SKU-MW-005": 85
+    "SKU-AC-12K-HAI": 180,
+    "SKU-WM-7KG-SAM": 52,
+    "SKU-RF-14CF-PEL": 70
   },
   "customer_etas": {
-    "ORD-S2-001": "2024-10-20",
-    "ORD-S2-002": "2024-10-22",
-    "ORD-S2-003": "2024-10-25"
+    "ORD-2301": "2026-05-26",
+    "ORD-2302": "2026-05-27"
   },
   "supplier_status": {
     "Karachi Cool Systems": "active",
-    "Lahore Electronics Hub": "active",
-    "Faisalabad Parts Co": "active"
+    "Lahore Electronics Hub": "active"
   },
   "notification_queue": [],
   "open_orders": [],
   "risk_metrics": {
-    "stockout_risk_pct": 65,
-    "revenue_at_risk_pkr": 3200000,
-    "days_of_stock_remaining": 4,
-    "pending_customer_orders_affected": 31
+    "stockout_risk_pct": 45.0,
+    "revenue_at_risk_pkr": 1800000.0,
+    "days_of_stock_remaining": 33,
+    "pending_customer_orders_affected": 12
   }
 }

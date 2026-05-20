@@ -53,7 +53,7 @@ async def get_state_diff(run_id: str):
     before_json = run.get("state_before")
     after_json = run.get("state_after")
     if not before_json or not after_json:
-        raise HTTPException(400, "Run not yet completed")
+        raise HTTPException(202, "Run not yet completed")
     before = BusinessState(**json.loads(before_json))
     after = BusinessState(**json.loads(after_json))
     from app.sandbox import Sandbox

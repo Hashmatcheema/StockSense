@@ -1,0 +1,4 @@
+{
+  "mock_supplier_fail_first_attempt": true,
+  "dependent_action_rollback_trigger": "order"
+}

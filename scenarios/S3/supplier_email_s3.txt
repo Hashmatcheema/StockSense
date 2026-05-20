@@ -1,0 +1,20 @@
+From: procurement@khant.pk
+To: info@karachicool.pk
+Date: 2026-05-19
+Subject: CRITICAL — Ceiling Fan Reorder Urgent — 4th Attempt, No Response
+
+Dear Karachi Cool Systems,
+
+FINAL NOTICE. We have received no response for 5 consecutive business days.
+
+Pending order  : 40 units SKU-FAN-24-HAV (Ceiling Fan 56-inch Havells)
+Current stock  : 8 units
+Daily demand   : 3.1 units per day
+Days to stockout: 2-3 days
+Affected orders: 19 customers, 34 units unfulfilled
+
+We are escalating to alternate suppliers. If we do not receive confirmation
+by close of business today, this relationship will be under review.
+
+Khan Traders Procurement
+Lahore, Pakistan

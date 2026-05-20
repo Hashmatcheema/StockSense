@@ -1,0 +1,6 @@
+{
+  "prompt": "dummy",
+  "response": "{\"signals\": [{\"kind\": \"external_shock\", \"sku\": null, \"metric\": \"fuel_price_pkr\", \"value\": 266, \"delta_vs_baseline_pct\": 3.0, \"rationale\": \"Fuel price hike of Rs 8 increases logistics costs.\"}]}",
+  "latency_ms": 150,
+  "tokens_used": 200
+}

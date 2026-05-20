@@ -19,6 +19,15 @@ class TraceLogger:
         self._subscribers: dict[str, list[asyncio.Queue]] = {}
         # Per-run lock to prevent race between replay and subscribe
         self._locks: dict[str, asyncio.Lock] = {}
+        # Runs that have already emitted `done`. Late subscribers (e.g. a
+        # client reconnecting after the pipeline finished) check this so
+        # they don't hang on `q.get()` forever — they replay persisted
+        # events, then immediately receive the done sentinel.
+        # Bounded LRU semantics via a max size: oldest entries drop out so
+        # the set never grows without bound across long uptimes.
+        self._completed: set[str] = set()
+        self._completed_order: list[str] = []
+        self._completed_max = 512
 
     def _get_lock(self, run_id: str) -> asyncio.Lock:
         if run_id not in self._locks:
@@ -51,11 +60,20 @@ class TraceLogger:
             await q.put(data)
 
     async def emit_done(self, run_id: str) -> None:
-        """Signal that the run is complete — send a sentinel and clean up."""
+        """Signal that the run is complete — send a sentinel and clean up.
+        Idempotent: safe to call from both supervisor success and
+        background-task except-blocks."""
+        if run_id in self._completed:
+            return
         for q in self._subscribers.get(run_id, []):
             await q.put(None)  # sentinel
         self._subscribers.pop(run_id, None)
         self._locks.pop(run_id, None)
+        self._completed.add(run_id)
+        self._completed_order.append(run_id)
+        if len(self._completed_order) > self._completed_max:
+            old = self._completed_order.pop(0)
+            self._completed.discard(old)
 
     # ── SSE Generator ────────────────────────────────────────────────────────
 
@@ -94,6 +112,13 @@ class TraceLogger:
                     "timestamp": row.get("timestamp", ""),
                 }
                 yield f"data: {json.dumps(event_data, default=str)}\n\n"
+
+            # Step 1b: If the run already finished, don't subscribe — just
+            # emit the done sentinel and exit. Prevents late-connecting
+            # clients from hanging on q.get() forever.
+            if run_id in self._completed:
+                yield f"event: done\ndata: {{}}\n\n"
+                return
 
             # Step 2: Subscribe for live events (while still holding lock)
             q = self.subscribe(run_id)

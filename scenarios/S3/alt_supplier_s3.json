@@ -1,0 +1,19 @@
+{
+  "supplier_name": "Lahore Electronics Hub",
+  "contact": "sales@lahoreelec.pk",
+  "phone": "+92-42-1234567",
+  "available_skus": [
+    {
+      "sku": "SKU-FAN-24-HAV",
+      "product": "Ceiling Fan 56-inch Havells",
+      "unit_price_pkr": 14000,
+      "units_available": 75,
+      "lead_time_days": 2,
+      "premium_vs_primary_pct": 12
+    }
+  ],
+  "payment_terms": "50 percent advance, 50 percent on delivery",
+  "min_order_qty": 10,
+  "status": "active",
+  "last_transaction": "2026-05-10"
+}

@@ -1,9 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../config/api_config.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+
+// Bundled app version — updated by CI on each release tag. Keep in sync
+// with pubspec.yaml `version:` so the About section never lies.
+const String kAppVersion = '0.1.0';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -31,6 +36,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _apiUrlController;
   bool _apiUrlSaved = false;
 
+  // API Key
+  late TextEditingController _apiKeyController;
+  bool _apiKeySaved = false;
+  bool _apiKeyObscured = true;
+
   final List<Map<String, dynamic>> presets = [
     {'label': '30 seconds', 'seconds': 30},
     {'label': '1 minute', 'seconds': 60},
@@ -45,6 +55,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _apiUrlController = TextEditingController(text: ApiConfig.baseUrl);
+    _apiKeyController = TextEditingController(text: ApiConfig.apiKey);
     _loadStatus();
     _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) => _loadStatus());
   }
@@ -53,6 +64,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _refreshTimer?.cancel();
     _apiUrlController.dispose();
+    _apiKeyController.dispose();
     _api.dispose();
     super.dispose();
   }
@@ -60,14 +72,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadStatus() async {
     try {
       final config = await _api.getMonitorConfig();
-      if (mounted && config != null) {
+      final runs = await _api.getLatestRuns(50);
+      if (mounted) {
         setState(() {
-          _lastCheckAgo = '${config['last_check_ago_seconds']}s ago';
-          _nextCheckIn = config['next_run_in_seconds'];
-          _currentInterval = config['interval_seconds'];
+          if (config != null) {
+            _lastCheckAgo = '${config['last_check_ago_seconds']}s ago';
+            _nextCheckIn = config['next_run_in_seconds'];
+            _currentInterval = config['interval_seconds'];
+            ApiConfig.updateFromMonitorConfig(config);
+          }
+          if (runs != null) {
+            _autoTriggerCount = runs.where((r) => r['trigger_type'] == 'autonomous').length;
+          }
         });
       }
     } catch (_) {}
+  }
+
+  Future<void> _saveApiKey() async {
+    final key = _apiKeyController.text.trim();
+    await ApiConfig.setApiKey(key);
+    setState(() => _apiKeySaved = true);
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _apiKeySaved = false);
+    });
   }
 
   Future<void> _applyFrequency() async {
@@ -113,6 +141,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (url.isEmpty) {
       await ApiConfig.clearBaseUrl();
     } else {
+      final uri = Uri.tryParse(url);
+      if (uri == null || !uri.hasScheme || (!uri.scheme.startsWith('http'))) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Invalid URL — must start with http:// or https://'),
+              backgroundColor: AppColors.stateCritical,
+            ),
+          );
+        }
+        return;
+      }
       await ApiConfig.setBaseUrl(url);
     }
     setState(() => _apiUrlSaved = true);
@@ -128,7 +168,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(
         title: Text('Settings',
             style: GoogleFonts.inter(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
-        backgroundColor: AppColors.bg,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.textSecondary),
       ),
@@ -179,7 +219,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Use http://10.0.2.2:8000 on emulator, http://<your-LAN-IP>:8000 on a device.',
+                      'Emulator: http://10.0.2.2:8000  •  Device via USB (adb reverse): http://127.0.0.1:8000  •  Device via WiFi: http://<LAN-IP>:8000',
                       style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 11),
                     ),
                     const SizedBox(height: 10),
@@ -241,6 +281,94 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 24),
 
+              // ── API Key Section ──
+              Text('API Key',
+                  style: GoogleFonts.inter(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border.all(color: AppColors.border),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: _apiKeyController,
+                      obscureText: _apiKeyObscured,
+                      style: GoogleFonts.jetBrainsMono(
+                          color: AppColors.textPrimary, fontSize: 13),
+                      decoration: InputDecoration(
+                        hintText: 'Leave empty if auth is disabled',
+                        hintStyle: GoogleFonts.jetBrainsMono(
+                            color: AppColors.textMuted, fontSize: 13),
+                        filled: true,
+                        fillColor: AppColors.surface2,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _apiKeyObscured ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                            size: 18,
+                            color: AppColors.textMuted,
+                          ),
+                          onPressed: () => setState(() => _apiKeyObscured = !_apiKeyObscured),
+                        ),
+                        border: OutlineInputBorder(
+                            borderSide: const BorderSide(color: AppColors.border),
+                            borderRadius: BorderRadius.circular(6)),
+                        enabledBorder: OutlineInputBorder(
+                            borderSide: const BorderSide(color: AppColors.border),
+                            borderRadius: BorderRadius.circular(6)),
+                        focusedBorder: OutlineInputBorder(
+                            borderSide: const BorderSide(color: AppColors.actionPrimary),
+                            borderRadius: BorderRadius.circular(6)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Must match API_KEY in backend .env. Leave empty if auth is disabled.',
+                      style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 11),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _saveApiKey,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.actionPrimary,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                          elevation: 0,
+                        ),
+                        child: Text('Save',
+                            style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    if (_apiKeySaved) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.check_circle, color: AppColors.stateOk, size: 14),
+                          const SizedBox(width: 6),
+                          Text('API key saved',
+                              style: GoogleFonts.inter(color: AppColors.stateOk, fontSize: 11)),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
               // ── Monitoring Frequency ──
               Text('Monitoring Frequency',
                   style: GoogleFonts.inter(
@@ -277,6 +405,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Expanded(
                       child: TextField(
                         keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                         style: GoogleFonts.inter(color: AppColors.textPrimary),
                         decoration: InputDecoration(
                           labelText: 'Value',
@@ -365,6 +494,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               ],
+
+              const SizedBox(height: 24),
+
+              // ── About ──
+              Text('About',
+                  style: GoogleFonts.inter(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    border: Border.all(color: AppColors.border),
+                    borderRadius: BorderRadius.circular(8)),
+                child: Column(
+                  children: [
+                    _buildStatusRow('App version', kAppVersion, AppColors.textPrimary),
+                    const Divider(height: 1, color: AppColors.border),
+                    _buildStatusRow('Server version', ApiConfig.serverVersion, AppColors.textPrimary),
+                    const Divider(height: 1, color: AppColors.border),
+                    _buildStatusRow('Model', ApiConfig.geminiModel, AppColors.textPrimary),
+                    const Divider(height: 1, color: AppColors.border),
+                    _buildStatusRow('Cost per 1M tokens',
+                        '\$${ApiConfig.geminiCostPerMTok.toStringAsFixed(4)}',
+                        AppColors.textPrimary),
+                  ],
+                ),
+              ),
 
               const SizedBox(height: 24),
 

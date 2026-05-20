@@ -1,0 +1,5 @@
+{
+  "response": "{\"stockout_risk_pct\": 80, \"revenue_at_risk_pkr\": 2800000, \"days_of_stock_remaining\": 2, \"customers_affected\": 19, \"primary_threat\": \"Ceiling fan stockout in 2 days with primary supplier silent — 34 open orders at risk of cancellation\", \"urgency\": \"critical\"}",
+  "latency_ms": 530,
+  "tokens_used": 225
+}

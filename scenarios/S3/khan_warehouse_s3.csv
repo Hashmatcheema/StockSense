@@ -1,0 +1,4 @@
+sku,product_name,units_on_hand,reorder_point,unit_cost_pkr,last_updated
+SKU-FAN-24-HAV,Ceiling Fan 56-inch Havells,8,30,12500,2026-05-19
+SKU-AC-12K-HAI,Air Conditioner 1.0 Ton Haier,55,50,143000,2026-05-19
+SKU-WM-7KG-SAM,Washing Machine 7kg Samsung,41,20,85000,2026-05-19

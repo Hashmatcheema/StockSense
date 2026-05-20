@@ -1,0 +1,23 @@
+From: info@karachicool.pk
+To: procurement@khant.pk
+Date: 2026-05-17
+Subject: Delivery Confirmation — Order KT-2026-0517
+
+Dear Khan Traders,
+
+We confirm successful delivery of your order:
+
+  Product : SKU-AC-12K-HAI (Air Conditioner 1.0 Ton Haier)
+  Quantity : 60 units
+  Delivered: 2026-05-17 at 14:30 via Khan Logistics
+  Receipt  : Signed by Mr. Tariq (Warehouse Supervisor)
+
+Please update your stock records. Your current stock should now be
+approximately 240 units (pre-existing + this delivery).
+
+Invoice KT-INV-0517 attached. Total: PKR 8,580,000.
+Payment due: 2026-05-31.
+
+Thank you for your continued business.
+
+Karachi Cool Systems

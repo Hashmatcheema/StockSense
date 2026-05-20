@@ -21,6 +21,27 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.1
 
 flutter:
   uses-material-design: true
+
+# Run once after dropping a 1024x1024 logo at assets/icon/icon.png:
+#   flutter pub run flutter_launcher_icons
+#   flutter pub run flutter_native_splash:create
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/icon.png"
+  remove_alpha_ios: true
+  min_sdk_android: 21
+  adaptive_icon_background: "#F8F9FA"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+
+flutter_native_splash:
+  color: "#F8F9FA"
+  image: "assets/icon/splash.png"
+  android_12:
+    image: "assets/icon/splash.png"
+    color: "#F8F9FA"

@@ -1,0 +1,6 @@
+{
+  "prompt": "dummy",
+  "response": "{\"signals\": [{\"kind\": \"sales_change\", \"sku\": \"AC-INV-12K-HAI\", \"metric\": \"pending_orders_unshipped\", \"value\": 31, \"delta_vs_baseline_pct\": 25.0, \"rationale\": \"Pending orders accumulated.\"}]}",
+  "latency_ms": 150,
+  "tokens_used": 200
+}

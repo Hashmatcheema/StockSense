@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from datetime import datetime, timezone
+from app.config import settings
 from app.monitor import get_interval, set_interval, scheduler, _last_check_at
 
 router = APIRouter(prefix="/monitor/config", tags=["monitor"])
@@ -26,7 +27,14 @@ async def get_config():
     return {
         "interval_seconds": interval,
         "next_run_in_seconds": next_run_in,
-        "last_check_ago_seconds": last_check_ago
+        "last_check_ago_seconds": last_check_ago,
+        # App-wide settings the client wants to keep in sync with the
+        # backend (cost rate used for the live-run stats bar, model name
+        # shown in Settings → About, server version).
+        "gemini_cost_per_mtok": settings.GEMINI_COST_PER_MTOK,
+        "gemini_model": settings.GEMINI_MODEL_FLASH,
+        "app_version": settings.APP_VERSION,
+        "company_name": settings.COMPANY_NAME,
     }
 
 @router.put("")

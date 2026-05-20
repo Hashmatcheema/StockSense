@@ -1,0 +1,6 @@
+sku,product_name,units_on_hand,reorder_point,unit_cost_pkr,last_updated
+SKU-AC-12K-HAI,Air Conditioner 1.0 Ton Haier,22,50,143000,2026-05-19
+SKU-WM-7KG-SAM,Washing Machine 7kg Samsung,45,20,85000,2026-05-19
+SKU-RF-14CF-PEL,Refrigerator 14 Cu.ft PEL,67,30,95000,2026-05-19
+SKU-TV-55-SAM,LED TV 55 inch Samsung,31,15,115000,2026-05-19
+SKU-MW-20L-ORI,Microwave 20L Orient,88,25,28000,2026-05-19

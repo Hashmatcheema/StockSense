@@ -1,0 +1,5 @@
+{
+  "response": "{\"signals\": [{\"kind\": \"external_shock\", \"sku\": null, \"metric\": \"logistics_cost_increase_pct\", \"value\": 12.5, \"delta_vs_baseline_pct\": 12.5, \"rationale\": \"Fuel price hike of Rs 8 per litre increases logistics costs 12-15 percent — PKR 800-1200 per appliance unit\"}]}",
+  "latency_ms": 340,
+  "tokens_used": 188
+}

@@ -20,6 +20,22 @@ class ExecutorAgent(BaseAgent):
         self.scenario_id = scenario_id
         self._s3_retry_done = False
         self._orders_executed = 0
+        
+        # Load scenario_config.json if it exists
+        import json
+        import pathlib
+        from app.config import settings
+        self.scenario_config = {}
+        if self.scenario_id:
+            from app.scenario_loader import validate_scenario_id
+            validate_scenario_id(self.scenario_id)
+            config_file = pathlib.Path(settings.SCENARIOS_DIR) / self.scenario_id / "scenario_config.json"
+            if config_file.exists():
+                try:
+                    with open(config_file, "r", encoding="utf-8") as f:
+                        self.scenario_config = json.load(f)
+                except Exception:
+                    pass
 
     async def run(self, input_data: ActionPlan) -> list[ExecutionResult]:
         await self.emit_event("agent_start",
@@ -30,17 +46,52 @@ class ExecutorAgent(BaseAgent):
         n_success = 0
         n_retried = 0
         n_rolled_back = 0
+        
+        retried_actions = set()
 
         for action in self._topo_sort(input_data.actions):
-            result = await self._exec(action)
-            results.append(result)
+            # Check if any dependency of this action was retried or failed
+            # If so, and we have rollback trigger, roll back this action!
+            dep_retried = any(d in retried_actions for d in action.depends_on)
+            rollback_trigger = self.scenario_config.get("dependent_action_rollback_trigger")
+            
+            is_rollback_target = False
+            if dep_retried and rollback_trigger:
+                # Find if the dependency was of kind rollback_trigger
+                for d_id in action.depends_on:
+                    dep_action = next((a for a in input_data.actions if a.id == d_id), None)
+                    if dep_action and dep_action.kind.value == rollback_trigger:
+                        is_rollback_target = True
+                        break
 
-            if result.status == ExecutionStatus.SUCCESS:
-                n_success += 1
-            elif result.status == ExecutionStatus.RETRIED:
-                n_retried += 1
-            elif result.status == ExecutionStatus.ROLLED_BACK:
+            if is_rollback_target:
+                # Dependency was retried/failed — skip this action without executing it.
+                # We must NOT call sandbox.rollback() here because the action was never
+                # applied; there is nothing to undo.
+                await self.emit_event("action_failed",
+                    input_summary=f"{action.id} ({action.kind.value})",
+                    output_summary=f"Skipped: dependency {rollback_trigger} failed/retried.",
+                    detail={"action_id": action.id, "error": "Dependency failed/retried"})
+                result = ExecutionResult(
+                    action_id=action.id,
+                    status=ExecutionStatus.ROLLED_BACK,
+                    state_diff={},
+                    latency_ms=0,
+                    tokens_used=0,
+                    error="Skipped: dependency failed/retried",
+                )
+                results.append(result)
                 n_rolled_back += 1
+            else:
+                result = await self._exec(action)
+                results.append(result)
+                if result.status == ExecutionStatus.SUCCESS:
+                    n_success += 1
+                elif result.status == ExecutionStatus.RETRIED:
+                    n_retried += 1
+                    retried_actions.add(action.id)
+                elif result.status == ExecutionStatus.ROLLED_BACK:
+                    n_rolled_back += 1
 
             await self.emit_event("action_executed",
                 input_summary=f"{action.id} ({action.kind.value})",
@@ -147,7 +198,8 @@ class ExecutorAgent(BaseAgent):
         cost = int(action.estimated_impact_pkr) if action.estimated_impact_pkr else 0
 
         # S3 failure simulation
-        if self.scenario_id == "S3" and not self._s3_retry_done:
+        mock_fail = self.scenario_config.get("mock_supplier_fail_first_attempt", False)
+        if (self.scenario_id == "S3" or mock_fail) and not self._s3_retry_done:
             self._s3_retry_done = True
             error_msg = "Supplier API timeout: connection refused after 30s"
 

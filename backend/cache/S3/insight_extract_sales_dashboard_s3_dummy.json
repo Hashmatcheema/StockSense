@@ -1,0 +1,5 @@
+{
+  "response": "{\"signals\": [{\"kind\": \"sales_change\", \"sku\": \"SKU-FAN-24-HAV\", \"metric\": \"daily_fan_sales_velocity\", \"value\": 3.1, \"delta_vs_baseline_pct\": 55.0, \"rationale\": \"Ceiling fan velocity 3.1 units per day with 34 units on open order — fulfillment gap of 26 units\"}, {\"kind\": \"complaint_cluster\", \"sku\": \"SKU-FAN-24-HAV\", \"metric\": \"fan_open_order_shortfall\", \"value\": 34, \"delta_vs_baseline_pct\": null, \"rationale\": \"34 open fan orders from 19 customers — all at risk of cancellation if stock not replenished within 48 hours\"}]}",
+  "latency_ms": 400,
+  "tokens_used": 200
+}

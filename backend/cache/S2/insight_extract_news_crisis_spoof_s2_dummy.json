@@ -1,0 +1,5 @@
+{
+  "response": "{\"signals\": [{\"kind\": \"stock_level\", \"sku\": \"SKU-AC-12K-HAI\", \"metric\": \"ac_inventory_units\", \"value\": 12, \"delta_vs_baseline_pct\": -94.5, \"rationale\": \"Unverified blog claims only 12 AC units remain in Lahore market — anonymous insider tip, credibility low\"}]}",
+  "latency_ms": 350,
+  "tokens_used": 185
+}

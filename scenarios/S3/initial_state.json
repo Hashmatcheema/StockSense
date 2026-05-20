@@ -1,37 +1,24 @@
 {
   "inventory": {
-    "AC-INV-12K-HAI": 18,
-    "AC-INV-15K-ORL": 7,
-    "RF-INV-14C-PEL": 45,
-    "WM-7KG-HAI": 12,
-    "LED-43-TCL": 23,
-    "LED-55-HON": 4
+    "SKU-FAN-24-HAV": 8,
+    "SKU-AC-12K-HAI": 55,
+    "SKU-WM-7KG-SAM": 41
   },
   "customer_etas": {
-    "ORD-2024-441": "2024-10-20",
-    "ORD-2024-442": "2024-10-22",
-    "ORD-2024-447": "2024-10-20",
-    "ORD-2024-451": "2024-10-25",
-    "ORD-2024-453": "2024-10-21"
+    "ORD-3101": "2026-05-23",
+    "ORD-3102": "2026-05-24",
+    "ORD-3103": "2026-05-22"
   },
   "supplier_status": {
-    "Karachi Cool Imports": "silent",
-    "Lahore Electronics Hub": "active",
-    "Faisalabad Parts Co": "active"
+    "Karachi Cool Systems": "silent",
+    "Lahore Electronics Hub": "active"
   },
   "notification_queue": [],
-  "open_orders": [
-    {
-      "order_id": "KT-2024-089", "supplier": "Karachi Cool Imports",
-      "sku": "AC-INV-12K-HAI", "qty": 22,
-      "value_pkr": 3124000, "status": "in_transit_delayed",
-      "original_eta": "2024-10-20"
-    }
-  ],
+  "open_orders": [],
   "risk_metrics": {
-    "stockout_risk_pct": 65,
-    "revenue_at_risk_pkr": 3200000,
-    "days_of_stock_remaining": 4,
-    "pending_customer_orders_affected": 31
+    "stockout_risk_pct": 80.0,
+    "revenue_at_risk_pkr": 2800000.0,
+    "days_of_stock_remaining": 2,
+    "pending_customer_orders_affected": 19
   }
 }
