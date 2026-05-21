@@ -1,6 +1,6 @@
 import asyncio
 import logging
-import httpx
+import time
 from datetime import datetime, timezone, timedelta
 import yaml
 from pathlib import Path
@@ -18,7 +18,6 @@ _interval_seconds: int = 60
 _last_check_at: datetime | None = None
 
 async def check_thresholds():
-    import time
     global _last_check_at
     _last_check_at = datetime.now(timezone.utc)
     now = time.time()
@@ -107,8 +106,7 @@ async def check_thresholds():
             log.error("threshold check failed for %s: %s", scenario_id, e)
 
     if best_scenario and best_reason:
-        import time as _t
-        ts = _t.time()
+        ts = time.time()
         _last_trigger[best_scenario] = ts
 
         # Persist cooldown to DB so it survives reloads
@@ -120,11 +118,19 @@ async def check_thresholds():
         await conn.commit()
 
         log.info("autonomous trigger: scenario=%s reason=%s", best_scenario, best_reason)
-        async with httpx.AsyncClient() as client:
-            await client.post(
-                f"http://localhost:8000/scenarios/{best_scenario}/run",
-                json={"trigger_type": "autonomous", "trigger_reason": best_reason}
+
+        # Call the run handler in-process to avoid an HTTP self-loop (which
+        # breaks when API_KEY is set, and is brittle if the port changes).
+        from app.routes.scenarios import _active_runs, _execute_run
+        from app.schemas import RunSummary
+        if best_scenario not in _active_runs:
+            run = RunSummary(
+                scenario_id=best_scenario,
+                trigger_type="autonomous",
+                trigger_reason=best_reason,
             )
+            await db.create_run(run)
+            asyncio.create_task(_execute_run(run.run_id, best_scenario, False))
 
 def get_interval() -> int:
     return _interval_seconds

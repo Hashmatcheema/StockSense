@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 import json
 from datetime import datetime
 from pathlib import Path
@@ -246,6 +245,13 @@ class Sandbox:
 
     async def persist_snapshot(self, run_id: str, label: str) -> None:
         await db.save_snapshot(run_id, label, self._current.model_dump_json())
+
+    @classmethod
+    def from_before_after(cls, before: BusinessState, after: BusinessState) -> "Sandbox":
+        """Reconstruct a Sandbox from a persisted before/after pair for diff computation."""
+        instance = cls(before)
+        instance._current = after
+        return instance
 
     @classmethod
     def from_json(cls, data: dict) -> "Sandbox":

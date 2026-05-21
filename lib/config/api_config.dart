@@ -53,8 +53,8 @@ class ApiConfig {
 
   /// Set and persist a new API base URL.
   static Future<void> setBaseUrl(String url) async {
-    _runtimeOverride = url.trimRight();
-    if (_runtimeOverride!.endsWith('/')) {
+    _runtimeOverride = url.trim();
+    while (_runtimeOverride!.endsWith('/')) {
       _runtimeOverride = _runtimeOverride!.substring(0, _runtimeOverride!.length - 1);
     }
     final prefs = await SharedPreferences.getInstance();

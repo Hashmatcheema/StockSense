@@ -42,8 +42,6 @@ class _BeforeAfterScreenState extends State<BeforeAfterScreen> {
       ]);
       final diff = results[0] as StateDiff?;
       final detail = results[1] as Map<String, dynamic>?;
-      // #24: Distinguish "run still in progress" (diff not ready yet) from
-      // a real network/parse failure (diff null AND run is completed/failed).
       final phase = (detail?['run'] as Map<String, dynamic>?)?['phase'] as String?;
       final runFinished = phase == 'completed' || phase == 'failed';
       if (mounted) {
@@ -51,8 +49,19 @@ class _BeforeAfterScreenState extends State<BeforeAfterScreen> {
           _diff = diff;
           _runDetail = detail;
           _loading = false;
-          _isInProgress = diff == null && !runFinished;
-          _error = diff == null && runFinished;
+          if (diff != null) {
+            // Diff is available — show content regardless of detail state.
+            _isInProgress = false;
+            _error = false;
+          } else if (detail == null) {
+            // Both requests failed — network error.
+            _isInProgress = false;
+            _error = true;
+          } else {
+            // Diff not ready yet.
+            _isInProgress = !runFinished;
+            _error = runFinished;
+          }
         });
       }
     } catch (_) {
@@ -485,21 +494,20 @@ class _BeforeAfterScreenState extends State<BeforeAfterScreen> {
   Widget _buildAgentTraceSummary() {
     final events = _runDetail?['trace_events'] as List<dynamic>? ?? [];
 
-    final Map<String, Map<String, dynamic>> agentStats = {
-      'ingestion': {'count': 0, 'latency': 0},
-      'insight': {'count': 0, 'latency': 0},
-      'planner': {'count': 0, 'latency': 0},
-      'executor': {'count': 0, 'latency': 0},
-      'supervisor': {'count': 0, 'latency': 0},
-    };
+    // Collect stats for every agent seen in the trace, preserving canonical order.
+    const canonicalOrder = ['supervisor', 'ingestion', 'insight', 'planner', 'executor'];
+    final Map<String, Map<String, dynamic>> agentStats = {};
+    for (final name in canonicalOrder) {
+      agentStats[name] = {'count': 0, 'latency': 0};
+    }
 
     for (var ev in events) {
-      final name = ev['agent_name'] as String;
-      if (agentStats.containsKey(name)) {
-        agentStats[name]!['count'] = (agentStats[name]!['count'] as int) + 1;
-        agentStats[name]!['latency'] =
-            (agentStats[name]!['latency'] as int) + (ev['latency_ms'] as int? ?? 0);
-      }
+      final name = ev['agent_name'] as String? ?? '';
+      if (name.isEmpty) continue;
+      agentStats.putIfAbsent(name, () => {'count': 0, 'latency': 0});
+      agentStats[name]!['count'] = (agentStats[name]!['count'] as int) + 1;
+      agentStats[name]!['latency'] =
+          (agentStats[name]!['latency'] as int) + (ev['latency_ms'] as int? ?? 0);
     }
 
     return Container(

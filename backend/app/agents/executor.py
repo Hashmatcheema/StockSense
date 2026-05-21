@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
+
+log = logging.getLogger(__name__)
 
 from app.agents.base import BaseAgent
 from app.sandbox import Sandbox
@@ -34,8 +37,8 @@ class ExecutorAgent(BaseAgent):
                 try:
                     with open(config_file, "r", encoding="utf-8") as f:
                         self.scenario_config = json.load(f)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    log.warning("scenario_config load failed for %s: %s", self.scenario_id, exc)
 
     async def run(self, input_data: ActionPlan) -> list[ExecutionResult]:
         await self.emit_event("agent_start",
@@ -176,7 +179,7 @@ class ExecutorAgent(BaseAgent):
             "to": action.params.get("recipients", ["procurement-team"]),
             "message": action.rationale or action.params.get("message", ""),
             "sent": True,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         diff = {
             "notification_queue": [notification],
@@ -281,7 +284,7 @@ class ExecutorAgent(BaseAgent):
     def _exec_schedule_monitor(self, action: Action, start: float) -> ExecutionResult:
         diff = {"scheduled_checks": [{
             "scenario_id": self.scenario_id,
-            "check_at": (datetime.utcnow() + timedelta(hours=24)).isoformat(),
+            "check_at": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
             "reason": action.rationale,
         }]}
         self.sandbox.apply_diff(diff)
@@ -297,7 +300,7 @@ class ExecutorAgent(BaseAgent):
         diff = {"investigations": [{
             "reason": action.rationale,
             "params": action.params,
-            "triggered_at": datetime.utcnow().isoformat(),
+            "triggered_at": datetime.now(timezone.utc).isoformat(),
         }]}
         self.sandbox.apply_diff(diff)
         return ExecutionResult(
@@ -324,17 +327,23 @@ class ExecutorAgent(BaseAgent):
     def _topo_sort(self, actions: list[Action]) -> list[Action]:
         by_id = {a.id: a for a in actions}
         visited: set[str] = set()
+        in_stack: set[str] = set()
         order: list[Action] = []
 
-        def visit(aid: str):
+        def visit(aid: str) -> None:
             if aid in visited:
                 return
-            visited.add(aid)
+            if aid in in_stack:
+                log.warning("dependency cycle detected at action %s — skipping edge", aid)
+                return
             a = by_id.get(aid)
             if not a:
                 return
+            in_stack.add(aid)
             for d in a.depends_on:
                 visit(d)
+            in_stack.discard(aid)
+            visited.add(aid)
             order.append(a)
 
         for a in actions:

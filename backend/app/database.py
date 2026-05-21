@@ -6,7 +6,7 @@ import asyncio
 import json
 import aiosqlite
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.config import settings
 from app.schemas import TraceEvent, RunSummary, RunPhase
@@ -187,7 +187,7 @@ async def save_snapshot(run_id: str, label: str, state_json: str) -> None:
     await db.execute(
         """INSERT INTO sandbox_snapshots (run_id, snapshot_label, state_json, created_at)
            VALUES (?, ?, ?, ?)""",
-        (run_id, label, state_json, datetime.utcnow().isoformat()),
+        (run_id, label, state_json, datetime.now(timezone.utc).isoformat()),
     )
     await db.commit()
 

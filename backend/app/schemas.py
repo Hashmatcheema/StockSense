@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Literal
+from typing import Any
 from pydantic import BaseModel, Field
 import uuid
 
@@ -94,7 +94,7 @@ class Signal(BaseModel):
     value: float
     delta_vs_baseline_pct: float | None = None
     source_doc_ids: list[str]
-    extracted_at: datetime = Field(default_factory=datetime.utcnow)
+    extracted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ConflictReport(BaseModel):
@@ -194,7 +194,7 @@ class TraceEvent(BaseModel):
     detail: dict | list | str | None = None
     latency_ms: int = 0
     tokens_used: int = 0
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # ── Run ──────────────────────────────────────────────────────────────────────
@@ -204,7 +204,7 @@ class RunSummary(BaseModel):
     run_id: str = Field(default_factory=_uuid)
     scenario_id: str
     phase: RunPhase = RunPhase.PENDING
-    started_at: datetime = Field(default_factory=datetime.utcnow)
+    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: datetime | None = None
     total_latency_ms: int = 0
     total_tokens_used: int = 0

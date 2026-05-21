@@ -40,8 +40,7 @@ class SupervisorAgent(BaseAgent):
 
         # 3. Planning — pass scenario_id for constraints loading
         await db.update_run(self.run_id, phase=RunPhase.PLANNING.value)
-        planner = PlannerAgent(self.run_id)
-        planner._scenario_id = scenario_id
+        planner = PlannerAgent(self.run_id, scenario_id=scenario_id)
         plan = await planner.run(insight_result)
 
         # 4. Execution — pass scenario_id for S3 failure simulation

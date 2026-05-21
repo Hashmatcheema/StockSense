@@ -36,9 +36,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+_cors_origins = settings.CORS_ORIGINS
+# allow_credentials=True is incompatible with allow_origins=['*'] — browsers
+# reject credentialed requests to a wildcard origin. Disable credentials when
+# the wildcard is in the list so the server doesn't crash on startup.
+_allow_credentials = "*" not in _cors_origins
 app.add_middleware(CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"])
 

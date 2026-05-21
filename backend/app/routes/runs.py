@@ -2,7 +2,7 @@
 from __future__ import annotations
 import json
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from app import database as db
 from app.trace_logger import trace_logger
 from app.schemas import BusinessState, StateDiff, ActionPlan
@@ -53,12 +53,11 @@ async def get_state_diff(run_id: str):
     before_json = run.get("state_before")
     after_json = run.get("state_after")
     if not before_json or not after_json:
-        raise HTTPException(202, "Run not yet completed")
+        return JSONResponse(status_code=202, content={"status": "pending", "phase": run.get("phase")})
     before = BusinessState(**json.loads(before_json))
     after = BusinessState(**json.loads(after_json))
     from app.sandbox import Sandbox
-    sb = Sandbox(before)
-    sb._current = after
+    sb = Sandbox.from_before_after(before, after)
     diff = sb.compute_diff()
     
     # Extract actions_taken and structured action_plan from the stored action_plan

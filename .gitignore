@@ -50,7 +50,7 @@ app.*.map.json
 **/*.pyo
 **/*.pyd
 **/.pytest_cache/
-backend/venv/
+**/venv/
 backend/.env
 backend/credentials.json
 backend/stocksense.db

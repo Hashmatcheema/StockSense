@@ -141,8 +141,8 @@ class _ScenariosScreenState extends State<ScenariosScreen> with SingleTickerProv
       if (silent && runs != null && config != null) {
         final runsUnchanged = runs.length == _latestRuns.length &&
             (runs.isEmpty ||
-                runs[0]['run_id'] == (_latestRuns.isNotEmpty ? _latestRuns[0]['run_id'] : '') &&
-                runs[0]['phase'] == (_latestRuns.isNotEmpty ? _latestRuns[0]['phase'] : ''));
+                (runs[0]['run_id'] == (_latestRuns.isNotEmpty ? _latestRuns[0]['run_id'] : '') &&
+                runs[0]['phase'] == (_latestRuns.isNotEmpty ? _latestRuns[0]['phase'] : '')));
         final configUnchanged = _monitorConfig != null &&
             config['interval_seconds'] == _monitorConfig!['interval_seconds'] &&
             config['next_run_in_seconds'] == _monitorConfig!['next_run_in_seconds'];

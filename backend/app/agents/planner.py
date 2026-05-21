@@ -6,9 +6,7 @@ Phase 2: Real Gemini-powered planning with constraint enforcement.
 from __future__ import annotations
 
 import json
-import time
 import pathlib
-from typing import Any
 
 import yaml
 from google import genai
@@ -20,7 +18,7 @@ from app.schemas import (
     Action, ActionKind, ActionPlan, ResolvedSignal, Urgency,
 )
 
-_client = genai.Client(vertexai=True, project="stocksense-496923", location="us-central1")
+_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent.parent
 
@@ -45,6 +43,10 @@ _URGENCY_MAP = {
 class PlannerAgent(BaseAgent):
     name = "planner"
 
+    def __init__(self, run_id: str, scenario_id: str = "") -> None:
+        super().__init__(run_id)
+        self.scenario_id = scenario_id
+
     async def run(self, input_data: dict) -> ActionPlan:
         """Generate a constrained action plan from resolved signals."""
         signals: list[ResolvedSignal] = input_data.get("resolved_signals", [])
@@ -57,7 +59,7 @@ class PlannerAgent(BaseAgent):
 
         # Load constraints from config.yaml if possible
         constraints = {"budget_pkr": 3500000, "lead_time_days": 5, "urgency": "high"}
-        scenario_id = getattr(self, '_scenario_id', None)
+        scenario_id = self.scenario_id
         if scenario_id:
             from app.scenario_loader import validate_scenario_id
             validate_scenario_id(scenario_id)
@@ -115,11 +117,10 @@ Output ONLY valid JSON:
         total_tokens = 0
         total_latency_ms = 0
 
-        t0 = time.time()
         try:
             def run_impact_gen():
                 return _client.models.generate_content(
-                    model="gemini-2.0-flash",
+                    model=settings.GEMINI_MODEL_FLASH,
                     contents=impact_prompt,
                     config=types.GenerateContentConfig(
                         temperature=0.1,
@@ -130,7 +131,7 @@ Output ONLY valid JSON:
 
             from app.cache_manager import get_cached_or_generate
             raw, latency, tokens = await get_cached_or_generate(
-                scenario_id=getattr(self, '_scenario_id', 'S1'),
+                scenario_id=self.scenario_id or 'S1',
                 agent_name='planner',
                 call_type='impact',
                 prompt=impact_prompt,
@@ -209,11 +210,10 @@ Output ONLY valid JSON:
 }}
 """
 
-        t0 = time.time()
         try:
             def run_plan_gen():
                 return _client.models.generate_content(
-                    model="gemini-2.0-flash",
+                    model=settings.GEMINI_MODEL_FLASH,
                     contents=plan_prompt,
                     config=types.GenerateContentConfig(
                         temperature=0.2,
@@ -224,7 +224,7 @@ Output ONLY valid JSON:
 
             from app.cache_manager import get_cached_or_generate
             raw, latency, tokens = await get_cached_or_generate(
-                scenario_id=getattr(self, '_scenario_id', 'S1'),
+                scenario_id=self.scenario_id or 'S1',
                 agent_name='planner',
                 call_type='plan',
                 prompt=plan_prompt,

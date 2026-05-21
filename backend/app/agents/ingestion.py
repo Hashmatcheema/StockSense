@@ -11,8 +11,7 @@ import io
 import json
 import os
 import pathlib
-from datetime import datetime
-from typing import Any
+from datetime import datetime, timezone
 
 import email as _email
 from bs4 import BeautifulSoup as _BS
@@ -165,7 +164,7 @@ class IngestionAgent(BaseAgent):
 
             doc = SourceDocument(
                 kind=kind,
-                fetched_at=datetime.utcnow(),
+                fetched_at=datetime.now(timezone.utc),
                 content=content,
                 credibility_prior=credibility_prior,
                 recency_days=round(recency_days, 1),

@@ -9,7 +9,7 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from json_repair import repair_json
@@ -18,14 +18,14 @@ from google import genai
 from google.genai import types
 
 from app.agents.base import BaseAgent
-
-log = logging.getLogger(__name__)
+from app.config import settings
 from app.schemas import (
     ConflictReport, ResolvedSignal, Signal, SignalKind, SourceDocument,
 )
-from app.config import settings
 
-_client = genai.Client(vertexai=True, project="stocksense-496923", location="us-central1")
+log = logging.getLogger(__name__)
+
+_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 
 class InsightAgent(BaseAgent):
@@ -100,7 +100,7 @@ Rules:
             try:
                 def run_gen():
                     return _client.models.generate_content(
-                        model="gemini-2.0-flash",
+                        model=settings.GEMINI_MODEL_FLASH,
                         contents=prompt,
                         config=types.GenerateContentConfig(
                             temperature=0.1,
@@ -153,6 +153,7 @@ Rules:
                           source_doc.id, self.run_id, err)
                 await self.emit_event(
                     "extraction_error",
+                    output_summary=f"Extraction failed for {source_doc.filename}: {type(err).__name__}",
                     detail={"source": source_doc.id, "error": str(err), "latency_ms": latency_ms}
                 )
                 continue
@@ -191,7 +192,7 @@ Rules:
                     value=value,
                     delta_vs_baseline_pct=delta,
                     source_doc_ids=[source_doc.id],
-                    extracted_at=datetime.utcnow()
+                    extracted_at=datetime.now(timezone.utc)
                 )
                 all_signals.append(s)
                 signal_names.append(s.metric)
@@ -309,7 +310,7 @@ Output ONLY valid JSON, no markdown:
                 try:
                     def run_conflict_gen():
                         return _client.models.generate_content(
-                            model="gemini-2.0-flash",
+                            model=settings.GEMINI_MODEL_FLASH,
                             contents=conflict_prompt,
                             config=types.GenerateContentConfig(
                                 temperature=0.0,
@@ -339,13 +340,11 @@ Output ONLY valid JSON, no markdown:
                     reason = str(res.get("reason", "Unknown"))
 
                 except Exception as e:
-                    import traceback
                     winner_idx = 0
                     confidence = 0.5
                     reason = f"fallback: parse error ({type(e).__name__})"
-                    log.error("conflict-parse-error metric=%s sku=%s [run_id=%s]: %s",
-                              metric, sku, self.run_id, e)
-                    traceback.print_exc()
+                    log.exception("conflict-parse-error metric=%s sku=%s [run_id=%s]",
+                                  metric, sku, self.run_id)
                     await self.emit_event(
                         "conflict_parse_error",
                         detail={"metric": metric, "sku": sku, "error": str(e), "raw_preview": raw[:200] if isinstance(raw, str) else None},

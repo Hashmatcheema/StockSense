@@ -52,7 +52,11 @@ class SseService {
           if (_disposed) return;
           buffer += chunk;
           if (buffer.length > maxBuffer) {
-            buffer = buffer.substring(buffer.length - maxBuffer);
+            // Trim at a \n\n frame boundary to avoid splitting a partial SSE frame.
+            final cutAt = buffer.lastIndexOf('\n\n', buffer.length - maxBuffer);
+            buffer = cutAt >= 0
+                ? buffer.substring(cutAt + 2)
+                : buffer.substring(buffer.length - maxBuffer);
           }
 
           while (buffer.contains('\n\n')) {

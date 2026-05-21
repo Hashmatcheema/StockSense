@@ -6,7 +6,7 @@ import csv
 import json
 import hashlib
 import io
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from app.config import settings
@@ -119,7 +119,7 @@ def load_sources(scenario_id: str) -> list[SourceDocument]:
 
         doc = SourceDocument(
             kind=kind,
-            fetched_at=datetime.utcnow(),
+            fetched_at=datetime.now(timezone.utc),
             content=content,
             credibility_prior=_CREDIBILITY_PRIORS[kind],
             recency_days=2.0,  # will be overridden by real data in Phase 2

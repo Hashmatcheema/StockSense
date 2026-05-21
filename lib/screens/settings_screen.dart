@@ -80,9 +80,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         setState(() {
           if (config != null) {
-            _lastCheckAgo = '${config['last_check_ago_seconds']}s ago';
-            _nextCheckIn = config['next_run_in_seconds'];
-            _currentInterval = config['interval_seconds'];
+            _lastCheckAgo = '${(config['last_check_ago_seconds'] as int? ?? 0)}s ago';
+            _nextCheckIn = (config['next_run_in_seconds'] as int? ?? 0);
+            _currentInterval = (config['interval_seconds'] as int? ?? 60);
             ApiConfig.updateFromMonitorConfig(config);
           }
           if (runs != null) {
@@ -333,7 +333,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const Divider(height: 1, color: AppColors.border),
                     _buildStatusRow('Next check', 'in ${_nextCheckIn}s', AppColors.stateOk),
                     const Divider(height: 1, color: AppColors.border),
-                    _buildStatusRow('Auto-alerts this session', '$_autoTriggerCount', AppColors.stateWarn),
+                    _buildStatusRow('Total auto-alerts', '$_autoTriggerCount', AppColors.stateWarn),
                   ],
                 ),
               ),

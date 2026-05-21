@@ -38,7 +38,6 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
   // Batched SSE event flush — coalesces bursts into ≤4 setStates/sec.
   final List<TraceEvent> _pendingEvents = [];
   Timer? _flushTimer;
-  final bool _shouldAutoScroll = true;
 
   // Action Plan (FR-6.2)
   Map<String, dynamic>? _actionPlan;
@@ -118,8 +117,7 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
       }
       _showTimeout = false;
     });
-    if (_shouldAutoScroll) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_scrollController.hasClients) return;
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
@@ -127,7 +125,6 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
           curve: Curves.easeOut,
         );
       });
-    }
   }
 
   Future<void> _fetchActionPlan() async {
@@ -626,6 +623,15 @@ String _elapsedLabel(String timestamp, DateTime? firstTs) {
   }
 }
 
+String _formatDetail(dynamic detail) {
+  try {
+    const encoder = JsonEncoder.withIndent('  ');
+    return encoder.convert(detail);
+  } catch (_) {
+    return detail.toString();
+  }
+}
+
 String _cleanSummary(String summary) {
   // Strip long Windows/Unix file paths — keep the human-readable part.
   return summary.replaceAllMapped(
@@ -731,15 +737,6 @@ class _TraceEventRow extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _formatDetail(dynamic detail) {
-    try {
-      const encoder = JsonEncoder.withIndent('  ');
-      return encoder.convert(detail);
-    } catch (_) {
-      return detail.toString();
-    }
   }
 }
 
@@ -911,14 +908,5 @@ class _GroupedEventRow extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _formatDetail(dynamic detail) {
-    try {
-      const encoder = JsonEncoder.withIndent('  ');
-      return encoder.convert(detail);
-    } catch (_) {
-      return detail.toString();
-    }
   }
 }
