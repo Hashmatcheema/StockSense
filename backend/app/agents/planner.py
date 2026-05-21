@@ -11,7 +11,8 @@ import pathlib
 from typing import Any
 
 import yaml
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from app.agents.base import BaseAgent
 from app.config import settings
@@ -19,8 +20,7 @@ from app.schemas import (
     Action, ActionKind, ActionPlan, ResolvedSignal, Urgency,
 )
 
-genai.configure(api_key=settings.GEMINI_API_KEY)
-_model = genai.GenerativeModel(settings.GEMINI_MODEL_FLASH)
+_client = genai.Client(vertexai=True, project="stocksense-496923", location="us-central1")
 
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent.parent
 
@@ -118,9 +118,10 @@ Output ONLY valid JSON:
         t0 = time.time()
         try:
             def run_impact_gen():
-                return _model.generate_content(
-                    impact_prompt,
-                    generation_config=genai.GenerationConfig(
+                return _client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=impact_prompt,
+                    config=types.GenerateContentConfig(
                         temperature=0.1,
                         max_output_tokens=400,
                         response_mime_type="application/json"
@@ -211,9 +212,10 @@ Output ONLY valid JSON:
         t0 = time.time()
         try:
             def run_plan_gen():
-                return _model.generate_content(
-                    plan_prompt,
-                    generation_config=genai.GenerationConfig(
+                return _client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=plan_prompt,
+                    config=types.GenerateContentConfig(
                         temperature=0.2,
                         max_output_tokens=1200,
                         response_mime_type="application/json"

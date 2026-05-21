@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/scenario.dart';
@@ -96,8 +95,16 @@ class _BeforeAfterScreenState extends State<BeforeAfterScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.surface,
         elevation: 0,
-        title: Text('Before / After — ${widget.scenario.id}',
-            style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Impact Report',
+                style: GoogleFonts.inter(
+                    fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            Text(widget.scenario.title,
+                style: GoogleFonts.inter(fontSize: 12, color: AppColors.textMuted)),
+          ],
+        ),
         iconTheme: const IconThemeData(color: AppColors.textSecondary),
       ),
       body: _loading
@@ -186,7 +193,7 @@ class _BeforeAfterScreenState extends State<BeforeAfterScreen> {
           const SizedBox(height: 8),
           _buildCustomerEtas(),
           const SizedBox(height: 24),
-          _buildSectionHeader('Agent Summary', Icons.hub_outlined),
+          _buildSectionHeader('Agent Activity', Icons.hub_outlined),
           const SizedBox(height: 8),
           _buildAgentTraceSummary(),
         ],
@@ -517,16 +524,16 @@ class _BeforeAfterScreenState extends State<BeforeAfterScreen> {
                 Icon(AppColors.agentIcon(e.key), size: 14, color: AppColors.textSecondary),
                 const SizedBox(width: 8),
                 Expanded(
-                    child: Text(e.key,
+                    child: Text(AppColors.agentLabel(e.key),
                         style: GoogleFonts.inter(
                             fontSize: 12,
                             color: AppColors.textPrimary,
                             fontWeight: FontWeight.w500))),
-                Text('${stat['count']} events',
+                Text('${stat['count']} decisions',
                     style: GoogleFonts.inter(fontSize: 12, color: AppColors.textMuted)),
                 const SizedBox(width: 16),
-                Text('${stat['latency']}ms',
-                    style: GoogleFonts.jetBrainsMono(fontSize: 11, color: AppColors.textMuted)),
+                Text('${((stat['latency'] as int) / 1000).toStringAsFixed(1)}s',
+                    style: GoogleFonts.inter(fontSize: 11, color: AppColors.textMuted)),
               ],
             ),
           );
@@ -612,7 +619,7 @@ class _MetricCard extends StatelessWidget {
     // When the card is already tinted, use a semi-transparent white badge
     // so the delta tag doesn't double-stack the same tint.
     final badgeColor = highlighted
-        ? Colors.white.withOpacity(0.55)
+        ? Colors.white.withValues(alpha: 0.55)
         : (deltaPositive ? AppColors.tintOk : AppColors.tintCritical);
 
     return Semantics(

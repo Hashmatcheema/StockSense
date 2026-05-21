@@ -105,6 +105,54 @@ class AppColors {
     }
   }
 
+  /// Human-readable label for each agent — surfaces to non-technical users.
+  static String agentLabel(String agentName) {
+    switch (agentName) {
+      case 'ingestion':
+        return 'Source Reader';
+      case 'insight':
+        return 'Risk Analyst';
+      case 'planner':
+        return 'Action Planner';
+      case 'executor':
+        return 'Action Taker';
+      case 'supervisor':
+        return 'Coordinator';
+      default:
+        return agentName;
+    }
+  }
+
+  /// Human-readable label for each event_type.
+  static String eventLabel(String eventType) {
+    switch (eventType) {
+      case 'agent_start':
+        return 'Started';
+      case 'agent_end':
+        return 'Completed';
+      case 'source_accepted':
+        return 'Source accepted';
+      case 'filtered_out':
+        return 'Source filtered out';
+      case 'conflict_resolved':
+        return 'Conflict resolved';
+      case 'action_executed':
+        return 'Action taken';
+      case 'action_failed':
+        return 'Action failed';
+      case 'action_retried':
+        return 'Retrying action';
+      case 'plan_generated':
+        return 'Plan ready';
+      case 'agent_failed':
+        return 'Agent error';
+      case 'extraction_error':
+        return 'Extraction issue';
+      default:
+        return eventType.replaceAll('_', ' ');
+    }
+  }
+
   /// Scenario type icon.
   static IconData scenarioIcon(String scenarioId) {
     switch (scenarioId) {

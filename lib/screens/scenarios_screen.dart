@@ -8,6 +8,8 @@ import '../config/api_config.dart';
 import '../models/scenario.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../models/state_diff.dart';
+import 'before_after_screen.dart';
 import 'live_run_screen.dart';
 
 const _kCachedRunsKey = 'cached_latest_runs_v1';
@@ -31,6 +33,10 @@ class _ScenariosScreenState extends State<ScenariosScreen> with SingleTickerProv
   Timer? _refreshTimer;
   bool _offlineMode = false;
   bool _fetchInFlight = false;
+
+  StateDiff? _latestDiff;
+  String? _latestDiffRunId;
+  String? _latestDiffScenarioId;
 
   late AnimationController _pulseCtrl;
 
@@ -153,6 +159,7 @@ class _ScenariosScreenState extends State<ScenariosScreen> with SingleTickerProv
           _isLoading = false;
           if (!silent || ok) _loadError = ok ? null : 'Backend not reachable';
         });
+        _refreshLatestDiff();
       }
     } catch (e) {
       if (!silent && mounted) {
@@ -165,6 +172,25 @@ class _ScenariosScreenState extends State<ScenariosScreen> with SingleTickerProv
     } finally {
       _fetchInFlight = false;
     }
+  }
+
+  /// Pull the most recent completed run's state diff so the home screen can
+  /// surface a one-glance impact card without making the user dig.
+  Future<void> _refreshLatestDiff() async {
+    final latestCompleted = _latestRuns.firstWhere(
+      (r) => r['phase'] == 'completed',
+      orElse: () => null,
+    );
+    if (latestCompleted == null) return;
+    final runId = latestCompleted['run_id'] as String?;
+    if (runId == null || runId == _latestDiffRunId) return;
+    final diff = await _api.getStateDiff(runId);
+    if (!mounted || diff == null) return;
+    setState(() {
+      _latestDiff = diff;
+      _latestDiffRunId = runId;
+      _latestDiffScenarioId = latestCompleted['scenario_id'] as String?;
+    });
   }
 
   String timeAgo(DateTime dt) {
@@ -262,6 +288,7 @@ class _ScenariosScreenState extends State<ScenariosScreen> with SingleTickerProv
                     _buildMonitoringStatusBar(),
                     if (_loadError != null) _buildErrorBanner(),
                     if (autonomousRuns.isNotEmpty) _buildActiveAlerts(autonomousRuns),
+                    if (_latestDiff != null) _buildLatestImpactCard(),
                     const SizedBox(height: 16),
                     _buildManualScenarios(),
                     if (_latestRuns.isNotEmpty) ...[
@@ -450,6 +477,152 @@ class _ScenariosScreenState extends State<ScenariosScreen> with SingleTickerProv
           );
         }),
       ],
+    );
+  }
+
+  Widget _buildLatestImpactCard() {
+    final d = _latestDiff!;
+    final scenarioId = _latestDiffScenarioId ?? '?';
+    final runId = _latestDiffRunId;
+    final scenario = _scenarios.firstWhere(
+      (s) => s.id == scenarioId,
+      orElse: () => Scenario(id: scenarioId, title: 'Latest analysis', description: '', sourceCount: 0),
+    );
+
+    final bRisk = d.before.riskMetrics.stockoutRiskPct;
+    final aRisk = d.after.riskMetrics.stockoutRiskPct;
+    final riskDelta = bRisk - aRisk;
+
+    final bRev = d.before.riskMetrics.revenueAtRiskPkr;
+    final aRev = d.after.riskMetrics.revenueAtRiskPkr;
+    final revSaved = bRev - aRev;
+
+    final improved = riskDelta > 0 || revSaved > 0;
+    final accent = improved ? AppColors.stateOk : AppColors.stateWarn;
+    final tint = improved ? AppColors.tintOk : AppColors.tintWarn;
+
+    String fmt(num v) {
+      if (v.abs() >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
+      if (v.abs() >= 1000) return '${(v / 1000).toStringAsFixed(0)}K';
+      return v.toStringAsFixed(0);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: runId == null
+            ? null
+            : () {
+                HapticFeedback.selectionClick();
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => BeforeAfterScreen(runId: runId, scenario: scenario),
+                ));
+              },
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: tint,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: accent.withValues(alpha: 0.4)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.insights_outlined, color: accent, size: 16),
+                  const SizedBox(width: 6),
+                  Text('Latest Impact',
+                      style: GoogleFonts.inter(
+                          color: accent, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+                  const Spacer(),
+                  Text('Tap to view full report →',
+                      style: GoogleFonts.inter(
+                          color: accent, fontSize: 11, fontWeight: FontWeight.w500)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(scenario.title,
+                  style: GoogleFonts.inter(
+                      color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _impactStat(
+                      label: 'Stockout risk',
+                      before: '${bRisk.toStringAsFixed(0)}%',
+                      after: '${aRisk.toStringAsFixed(0)}%',
+                      delta: riskDelta > 0
+                          ? '↓ ${riskDelta.toStringAsFixed(0)} pts'
+                          : (riskDelta < 0 ? '↑ ${riskDelta.abs().toStringAsFixed(0)} pts' : '—'),
+                      good: riskDelta > 0,
+                    ),
+                  ),
+                  Container(width: 1, height: 36, color: accent.withValues(alpha: 0.2)),
+                  Expanded(
+                    child: _impactStat(
+                      label: 'Revenue at risk',
+                      before: 'Rs ${fmt(bRev)}',
+                      after: 'Rs ${fmt(aRev)}',
+                      delta: revSaved > 0
+                          ? '↓ Rs ${fmt(revSaved)}'
+                          : (revSaved < 0 ? '↑ Rs ${fmt(revSaved.abs())}' : '—'),
+                      good: revSaved > 0,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _impactStat({
+    required String label,
+    required String before,
+    required String after,
+    required String delta,
+    required bool good,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: GoogleFonts.inter(
+                  color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w500, letterSpacing: 0.4)),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Text(before,
+                  style: GoogleFonts.inter(
+                      color: AppColors.textMuted,
+                      fontSize: 12,
+                      decoration: TextDecoration.lineThrough)),
+              const SizedBox(width: 4),
+              const Icon(Icons.arrow_forward, size: 11, color: AppColors.textMuted),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(after,
+                    style: GoogleFonts.inter(
+                        color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700),
+                    overflow: TextOverflow.ellipsis),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(delta,
+              style: GoogleFonts.inter(
+                  color: good ? AppColors.stateOk : AppColors.stateCritical,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600)),
+        ],
+      ),
     );
   }
 
@@ -777,7 +950,7 @@ class _ScenariosSkeletonState extends State<_ScenariosSkeleton>
 
   Widget _box({double? w, double h = 14, double r = 4}) => AnimatedBuilder(
         animation: _c,
-        builder: (_, __) => Container(
+        builder: (_, _) => Container(
           width: w,
           height: h,
           decoration: BoxDecoration(

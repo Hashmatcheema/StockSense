@@ -14,7 +14,8 @@ from typing import Any
 
 from json_repair import repair_json
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from app.agents.base import BaseAgent
 
@@ -24,8 +25,7 @@ from app.schemas import (
 )
 from app.config import settings
 
-genai.configure(api_key=settings.GEMINI_API_KEY)
-_model = genai.GenerativeModel(settings.GEMINI_MODEL_FLASH)
+_client = genai.Client(vertexai=True, project="stocksense-496923", location="us-central1")
 
 
 class InsightAgent(BaseAgent):
@@ -99,9 +99,10 @@ Rules:
             t0 = time.time()
             try:
                 def run_gen():
-                    return _model.generate_content(
-                        prompt,
-                        generation_config=genai.GenerationConfig(
+                    return _client.models.generate_content(
+                        model="gemini-2.0-flash",
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
                             temperature=0.1,
                             max_output_tokens=800,
                             response_mime_type="application/json"
@@ -307,9 +308,10 @@ Output ONLY valid JSON, no markdown:
                 t0 = time.time()
                 try:
                     def run_conflict_gen():
-                        return _model.generate_content(
-                            conflict_prompt,
-                            generation_config=genai.GenerationConfig(
+                        return _client.models.generate_content(
+                            model="gemini-2.0-flash",
+                            contents=conflict_prompt,
+                            config=types.GenerateContentConfig(
                                 temperature=0.0,
                                 max_output_tokens=200,
                                 response_mime_type="application/json"

@@ -30,6 +30,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _currentInterval = 60;
   int _autoTriggerCount = 0;
 
+  // Advanced settings are hidden by default so the screen reads like an
+  // operator-facing preferences page, not a developer console.
+  bool _advancedExpanded = false;
+
   Timer? _refreshTimer;
 
   // API URL
@@ -178,6 +182,196 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ── Monitoring Frequency (primary user-facing setting) ──
+              Text('How often should StockSense check your business?',
+                  style: GoogleFonts.inter(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Text(
+                'StockSense scans your suppliers, sales, and inventory on this schedule and alerts you when something looks off.',
+                style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    border: Border.all(color: AppColors.border),
+                    borderRadius: BorderRadius.circular(8)),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedPreset,
+                    dropdownColor: AppColors.surface,
+                    style: GoogleFonts.inter(color: AppColors.textPrimary, fontSize: 14),
+                    icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
+                    isExpanded: true,
+                    onChanged: (val) => setState(() => _selectedPreset = val!),
+                    items: presets
+                        .map((p) => DropdownMenuItem(
+                            value: p['label'] as String,
+                            child: Text(p['label'] as String)))
+                        .toList(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_selectedPreset == 'Custom') ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        style: GoogleFonts.inter(color: AppColors.textPrimary),
+                        decoration: InputDecoration(
+                          labelText: 'Value',
+                          labelStyle: GoogleFonts.inter(color: AppColors.textSecondary),
+                          filled: true,
+                          fillColor: AppColors.surface,
+                          border: OutlineInputBorder(
+                              borderSide: const BorderSide(color: AppColors.border),
+                              borderRadius: BorderRadius.circular(6)),
+                          enabledBorder: OutlineInputBorder(
+                              borderSide: const BorderSide(color: AppColors.border),
+                              borderRadius: BorderRadius.circular(6)),
+                        ),
+                        onChanged: (v) => _customValue = int.tryParse(v) ?? 60,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          border: Border.all(color: AppColors.border),
+                          borderRadius: BorderRadius.circular(6)),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _customUnit,
+                          dropdownColor: AppColors.surface,
+                          style: GoogleFonts.inter(color: AppColors.textPrimary, fontSize: 14),
+                          icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
+                          onChanged: (v) => setState(() => _customUnit = v!),
+                          items: ['seconds', 'minutes', 'hours']
+                              .map((u) => DropdownMenuItem(value: u, child: Text(u)))
+                              .toList(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+              ],
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _applying ? AppColors.surface2 : AppColors.actionPrimary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    elevation: 0,
+                  ),
+                  onPressed: _applying ? null : _applyFrequency,
+                  child: _applying
+                      ? Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: AppColors.textSecondary)),
+                            const SizedBox(width: 8),
+                            Text("Saving…",
+                                style: GoogleFonts.inter(color: AppColors.textSecondary)),
+                          ],
+                        )
+                      : Text("Save schedule",
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13)),
+                ),
+              ),
+              if (_applySuccess != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                      color: AppColors.tintOk,
+                      border: Border.all(color: AppColors.stateOk),
+                      borderRadius: BorderRadius.circular(6)),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle, color: AppColors.stateOk, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                          child: Text(_applySuccess!,
+                              style: GoogleFonts.inter(color: AppColors.stateOk, fontSize: 13))),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 28),
+
+              // ── At a glance ──
+              Text('At a glance',
+                  style: GoogleFonts.inter(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              Container(
+                decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    border: Border.all(color: AppColors.border),
+                    borderRadius: BorderRadius.circular(8)),
+                child: Column(
+                  children: [
+                    _buildStatusRow('Last check', _lastCheckAgo, AppColors.textPrimary),
+                    const Divider(height: 1, color: AppColors.border),
+                    _buildStatusRow('Next check', 'in ${_nextCheckIn}s', AppColors.stateOk),
+                    const Divider(height: 1, color: AppColors.border),
+                    _buildStatusRow('Auto-alerts this session', '$_autoTriggerCount', AppColors.stateWarn),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              // ── Advanced (collapsible) ──
+              InkWell(
+                onTap: () => setState(() => _advancedExpanded = !_advancedExpanded),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _advancedExpanded
+                            ? Icons.keyboard_arrow_down
+                            : Icons.keyboard_arrow_right,
+                        color: AppColors.textSecondary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 4),
+                      Text('Advanced',
+                          style: GoogleFonts.inter(
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 8),
+                      Text('(for developers / IT)',
+                          style: GoogleFonts.inter(
+                              color: AppColors.textMuted, fontSize: 11)),
+                    ],
+                  ),
+                ),
+              ),
+              if (!_advancedExpanded) const SizedBox(height: 12),
+              if (_advancedExpanded) ...[
+                const SizedBox(height: 8),
               // ── API URL Section ──
               Text('API URL',
                   style: GoogleFonts.inter(
@@ -369,134 +563,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 24),
 
-              // ── Monitoring Frequency ──
-              Text('Monitoring Frequency',
-                  style: GoogleFonts.inter(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    border: Border.all(color: AppColors.border),
-                    borderRadius: BorderRadius.circular(8)),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _selectedPreset,
-                    dropdownColor: AppColors.surface,
-                    style: GoogleFonts.inter(color: AppColors.textPrimary, fontSize: 14),
-                    icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
-                    isExpanded: true,
-                    onChanged: (val) => setState(() => _selectedPreset = val!),
-                    items: presets
-                        .map((p) => DropdownMenuItem(
-                            value: p['label'] as String,
-                            child: Text(p['label'] as String)))
-                        .toList(),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (_selectedPreset == 'Custom') ...[
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                        style: GoogleFonts.inter(color: AppColors.textPrimary),
-                        decoration: InputDecoration(
-                          labelText: 'Value',
-                          labelStyle: GoogleFonts.inter(color: AppColors.textSecondary),
-                          filled: true,
-                          fillColor: AppColors.surface,
-                          border: OutlineInputBorder(
-                              borderSide: const BorderSide(color: AppColors.border),
-                              borderRadius: BorderRadius.circular(6)),
-                          enabledBorder: OutlineInputBorder(
-                              borderSide: const BorderSide(color: AppColors.border),
-                              borderRadius: BorderRadius.circular(6)),
-                        ),
-                        onChanged: (v) => _customValue = int.tryParse(v) ?? 60,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          border: Border.all(color: AppColors.border),
-                          borderRadius: BorderRadius.circular(6)),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _customUnit,
-                          dropdownColor: AppColors.surface,
-                          style: GoogleFonts.inter(color: AppColors.textPrimary, fontSize: 14),
-                          icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
-                          onChanged: (v) => setState(() => _customUnit = v!),
-                          items: ['seconds', 'minutes', 'hours']
-                              .map((u) => DropdownMenuItem(value: u, child: Text(u)))
-                              .toList(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-              ],
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _applying ? AppColors.surface2 : AppColors.actionPrimary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                    elevation: 0,
-                  ),
-                  onPressed: _applying ? null : _applyFrequency,
-                  child: _applying
-                      ? Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: AppColors.textSecondary)),
-                            const SizedBox(width: 8),
-                            Text("Applying...",
-                                style: GoogleFonts.inter(color: AppColors.textSecondary)),
-                          ],
-                        )
-                      : Text("Apply",
-                          style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13)),
-                ),
-              ),
-              if (_applySuccess != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                      color: AppColors.tintOk,
-                      border: Border.all(color: AppColors.stateOk),
-                      borderRadius: BorderRadius.circular(6)),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.check_circle, color: AppColors.stateOk, size: 16),
-                      const SizedBox(width: 8),
-                      Expanded(
-                          child: Text(_applySuccess!,
-                              style: GoogleFonts.inter(color: AppColors.stateOk, fontSize: 13))),
-                    ],
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 24),
-
               // ── About ──
               Text('About',
                   style: GoogleFonts.inter(
@@ -515,41 +581,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const Divider(height: 1, color: AppColors.border),
                     _buildStatusRow('Server version', ApiConfig.serverVersion, AppColors.textPrimary),
                     const Divider(height: 1, color: AppColors.border),
-                    _buildStatusRow('Model', ApiConfig.geminiModel, AppColors.textPrimary),
+                    _buildStatusRow('AI model', ApiConfig.geminiModel, AppColors.textPrimary),
                     const Divider(height: 1, color: AppColors.border),
-                    _buildStatusRow('Cost per 1M tokens',
-                        '\$${ApiConfig.geminiCostPerMTok.toStringAsFixed(4)}',
-                        AppColors.textPrimary),
+                    _buildStatusRow('Current check interval', '${_currentInterval}s', AppColors.textPrimary),
                   ],
                 ),
               ),
-
-              const SizedBox(height: 24),
-
-              // ── Monitor Status ──
-              Text('Monitor Status',
-                  style: GoogleFonts.inter(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    border: Border.all(color: AppColors.border),
-                    borderRadius: BorderRadius.circular(8)),
-                child: Column(
-                  children: [
-                    _buildStatusRow('Last check', _lastCheckAgo, AppColors.textPrimary),
-                    const Divider(height: 1, color: AppColors.border),
-                    _buildStatusRow('Next check', 'in ${_nextCheckIn}s', AppColors.stateOk),
-                    const Divider(height: 1, color: AppColors.border),
-                    _buildStatusRow('Current interval', '${_currentInterval}s', AppColors.textPrimary),
-                    const Divider(height: 1, color: AppColors.border),
-                    _buildStatusRow('Auto-triggers (session)', '$_autoTriggerCount', AppColors.stateWarn),
-                  ],
-                ),
-              ),
+              const SizedBox(height: 12),
+              ],
             ],
           ),
         ),

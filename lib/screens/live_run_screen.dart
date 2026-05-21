@@ -38,7 +38,7 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
   // Batched SSE event flush — coalesces bursts into ≤4 setStates/sec.
   final List<TraceEvent> _pendingEvents = [];
   Timer? _flushTimer;
-  bool _shouldAutoScroll = true;
+  final bool _shouldAutoScroll = true;
 
   // Action Plan (FR-6.2)
   Map<String, dynamic>? _actionPlan;
@@ -184,7 +184,7 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Live Run — ${widget.scenario.id}',
+            Text(_done ? 'Analysis Complete' : 'Analysis in Progress',
                 style: GoogleFonts.inter(
                     fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
             Text(widget.scenario.title,
@@ -192,16 +192,21 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
           ],
         ),
         actions: [
-          if (_done)
-            TextButton.icon(
-              icon: const Icon(Icons.table_chart_outlined, color: AppColors.actionPrimary, size: 18),
-              label: Text('View Results',
-                  style: GoogleFonts.inter(color: AppColors.actionPrimary, fontSize: 13)),
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) =>
-                    BeforeAfterScreen(runId: widget.runId, scenario: widget.scenario),
-              )),
-            ),
+          TextButton.icon(
+            icon: Icon(Icons.assessment_outlined,
+                color: _done ? AppColors.actionPrimary : AppColors.textMuted, size: 18),
+            label: Text('View Impact',
+                style: GoogleFonts.inter(
+                    color: _done ? AppColors.actionPrimary : AppColors.textMuted,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
+            onPressed: _done
+                ? () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) =>
+                          BeforeAfterScreen(runId: widget.runId, scenario: widget.scenario),
+                    ))
+                : null,
+          ),
           const SizedBox(width: 8),
         ],
       ),
@@ -215,51 +220,153 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
   }
 
   Widget _buildStatsBar() {
-    // Cost rate is fetched from /monitor/config and cached in ApiConfig so
-    // it matches the actual backend billing rate without a client rebuild.
-    final costUsd = _totalTokens / 1000000 * ApiConfig.geminiCostPerMTok;
+    // Compute business-friendly counts from the trace stream.
+    int sourcesRead = 0;
+    int actionsTaken = 0;
+    final Set<String> agentsActive = {};
+    for (final e in _events) {
+      agentsActive.add(e.agentName);
+      if (e.eventType == 'source_accepted') sourcesRead++;
+      if (e.eventType == 'action_executed') actionsTaken++;
+    }
+    final seconds = (_totalLatencyMs / 1000).toStringAsFixed(1);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: const BoxDecoration(
         color: AppColors.surface,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildStat('LATENCY', '${_totalLatencyMs}ms'),
-          const SizedBox(width: 16),
-          _buildStat('TOKENS', '$_totalTokens'),
-          const SizedBox(width: 16),
-          _buildStat('COST', '\$${costUsd.toStringAsFixed(4)}'),
-          const Spacer(),
-          Text(
-            _done ? 'COMPLETE' : 'RUNNING',
-            style: TextStyle(
-              color: _done ? AppColors.stateOk : AppColors.stateWarn,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.8,
-            ),
+          Row(
+            children: [
+              if (!_done)
+                AnimatedBuilder(
+                  animation: _pulseCtrl,
+                  builder: (context, child) => Opacity(
+                    opacity: 0.4 + (_pulseCtrl.value * 0.6),
+                    child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                            color: AppColors.stateWarn, shape: BoxShape.circle)),
+                  ),
+                )
+              else
+                const Icon(Icons.check_circle, size: 14, color: AppColors.stateOk),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _done
+                      ? 'Analysis complete — review the impact report'
+                      : 'Agents are watching your business and deciding what to do…',
+                  style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w500),
+                ),
+              ),
+              Tooltip(
+                message: 'Technical details',
+                child: IconButton(
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minHeight: 28, minWidth: 28),
+                  icon: const Icon(Icons.info_outline,
+                      size: 16, color: AppColors.textMuted),
+                  onPressed: _showTechDetails,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _buildPill(Icons.description_outlined, '$sourcesRead', 'sources read'),
+              const SizedBox(width: 8),
+              _buildPill(Icons.bolt_outlined, '$actionsTaken', 'actions taken'),
+              const SizedBox(width: 8),
+              _buildPill(Icons.schedule_outlined, '${seconds}s', 'elapsed'),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStat(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: GoogleFonts.jetBrainsMono(
-                color: AppColors.textMuted, fontSize: 9, letterSpacing: 0.5)),
-        Text(value,
-            style: GoogleFonts.jetBrainsMono(
-                color: AppColors.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w600)),
-      ],
+  Widget _buildPill(IconData icon, String value, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surface2,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: AppColors.textSecondary),
+          const SizedBox(width: 5),
+          Text(value,
+              style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600)),
+          const SizedBox(width: 4),
+          Text(label,
+              style: GoogleFonts.inter(fontSize: 11, color: AppColors.textMuted)),
+        ],
+      ),
+    );
+  }
+
+  void _showTechDetails() {
+    final costUsd = _totalTokens / 1000000 * ApiConfig.geminiCostPerMTok;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Technical details',
+                style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary)),
+            const SizedBox(height: 12),
+            _techRow('AI processing time', '$_totalLatencyMs ms'),
+            _techRow('AI tokens used', '$_totalTokens'),
+            _techRow('Estimated cost', '\$${costUsd.toStringAsFixed(4)}'),
+            _techRow('Run ID', widget.runId),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _techRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Text(label,
+              style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary)),
+          const Spacer(),
+          Flexible(
+            child: Text(value,
+                textAlign: TextAlign.right,
+                style: GoogleFonts.jetBrainsMono(
+                    fontSize: 12, color: AppColors.textPrimary),
+                overflow: TextOverflow.ellipsis),
+          ),
+        ],
+      ),
     );
   }
 
@@ -574,7 +681,7 @@ class _TraceEventRow extends StatelessWidget {
                             Icon(AppColors.agentIcon(event.agentName),
                                 size: 16, color: AppColors.textSecondary),
                             const SizedBox(width: 6),
-                            Text(event.agentName,
+                            Text(AppColors.agentLabel(event.agentName),
                                 style: GoogleFonts.inter(
                                     fontSize: 13,
                                     color: AppColors.textPrimary,
@@ -585,7 +692,7 @@ class _TraceEventRow extends StatelessWidget {
                               decoration: BoxDecoration(
                                   color: AppColors.surface2,
                                   borderRadius: BorderRadius.circular(4)),
-                              child: Text(event.eventType,
+                              child: Text(AppColors.eventLabel(event.eventType),
                                   style: GoogleFonts.inter(
                                       fontSize: 10, color: AppColors.textSecondary)),
                             ),
@@ -706,7 +813,7 @@ class _GroupedEventRow extends StatelessWidget {
                           Icon(AppColors.agentIcon(first.agentName),
                               size: 16, color: AppColors.textSecondary),
                           const SizedBox(width: 6),
-                          Text(first.agentName,
+                          Text(AppColors.agentLabel(first.agentName),
                               style: GoogleFonts.inter(
                                   fontSize: 13,
                                   color: AppColors.textPrimary,
@@ -717,7 +824,7 @@ class _GroupedEventRow extends StatelessWidget {
                             decoration: BoxDecoration(
                                 color: AppColors.surface2,
                                 borderRadius: BorderRadius.circular(4)),
-                            child: Text(first.eventType,
+                            child: Text(AppColors.eventLabel(first.eventType),
                                 style: GoogleFonts.inter(
                                     fontSize: 10, color: AppColors.textSecondary)),
                           ),
@@ -726,7 +833,7 @@ class _GroupedEventRow extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: borderColor.withOpacity(0.12),
+                              color: borderColor.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text('×${events.length}',
