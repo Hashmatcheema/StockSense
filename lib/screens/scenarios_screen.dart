@@ -754,19 +754,177 @@ class _ScenariosScreenState extends State<ScenariosScreen> with SingleTickerProv
     return '${dt.day}/${dt.month}/${dt.year}';
   }
 
+  Widget _buildRunTile(dynamic r, {BorderRadius? borderRadius}) {
+    final isAuto = r['trigger_type'] == 'autonomous';
+    final isComplete = r['phase'] == 'completed';
+    final dt = DateTime.parse(r['started_at'] ?? DateTime.now().toIso8601String());
+    final runId = r['run_id'] as String?;
+    final scenarioId = r['scenario_id'] as String?;
+    final scenario = _scenarios.firstWhere(
+        (s) => s.id == scenarioId,
+        orElse: () => Scenario(id: scenarioId ?? '?', title: '', description: '', sourceCount: 0));
+
+    return InkWell(
+      onTap: runId != null && scenarioId != null
+          ? () {
+              HapticFeedback.selectionClick();
+              _openRun(runId, scenarioId);
+            }
+          : null,
+      borderRadius: borderRadius ?? BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                  color: AppColors.surface2,
+                  border: Border.all(color: AppColors.border),
+                  borderRadius: BorderRadius.circular(3)),
+              child: Text(scenarioId ?? '',
+                  style: GoogleFonts.inter(
+                      color: AppColors.textSecondary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600)),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(scenario.title,
+                  style: GoogleFonts.inter(color: AppColors.textPrimary, fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1),
+            ),
+            const SizedBox(width: 8),
+            if (isAuto)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: StatusPill(
+                    label: 'auto',
+                    color: AppColors.stateCritical,
+                    tint: AppColors.tintCritical),
+              ),
+            StatusPill(
+              label: isComplete ? 'Done' : 'Running',
+              color: isComplete ? AppColors.stateOk : AppColors.stateWarn,
+              tint: isComplete ? AppColors.tintOk : AppColors.tintWarn,
+            ),
+            const SizedBox(width: 8),
+            Text(timeAgo(dt),
+                style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 11)),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, size: 16, color: AppColors.textMuted),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showHistorySheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (_) {
+        final List<MapEntry<String, List<dynamic>>> dayGroups = [];
+        final Map<String, List<dynamic>> seen = {};
+        for (final r in _latestRuns) {
+          final dt = DateTime.parse(r['started_at'] ?? DateTime.now().toIso8601String());
+          final label = _dayLabel(dt);
+          if (!seen.containsKey(label)) {
+            seen[label] = [];
+            dayGroups.add(MapEntry(label, seen[label]!));
+          }
+          seen[label]!.add(r);
+        }
+
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.6,
+          maxChildSize: 0.92,
+          builder: (_, controller) => Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                child: Row(
+                  children: [
+                    Text('Run History',
+                        style: GoogleFonts.inter(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary)),
+                    const Spacer(),
+                    Text('${_latestRuns.length} runs',
+                        style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12)),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: AppColors.border),
+              Expanded(
+                child: ListView(
+                  controller: controller,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  children: dayGroups.map((group) {
+                    final dayLabel = group.key;
+                    final runs = group.value;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+                          child: Text(dayLabel,
+                              style: GoogleFonts.inter(
+                                  color: AppColors.textMuted,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                        Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            border: Border.all(color: AppColors.border),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            children: runs.asMap().entries.map((entry) {
+                              final idx = entry.key;
+                              final r = entry.value;
+                              BorderRadius? br;
+                              if (idx == 0 && runs.length == 1) {
+                                br = BorderRadius.circular(8);
+                              } else if (idx == 0) {
+                                br = const BorderRadius.vertical(top: Radius.circular(8));
+                              } else if (idx == runs.length - 1) {
+                                br = const BorderRadius.vertical(bottom: Radius.circular(8));
+                              }
+                              return Column(
+                                children: [
+                                  _buildRunTile(r, borderRadius: br),
+                                  if (idx < runs.length - 1)
+                                    const Divider(height: 1, color: AppColors.border),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildRecentRuns() {
-    // Group runs by calendar day for a history timeline feel.
-    final List<MapEntry<String, List<dynamic>>> dayGroups = [];
-    final Map<String, List<dynamic>> seen = {};
-    for (final r in _latestRuns) {
-      final dt = DateTime.parse(r['started_at'] ?? DateTime.now().toIso8601String());
-      final label = _dayLabel(dt);
-      if (!seen.containsKey(label)) {
-        seen[label] = [];
-        dayGroups.add(MapEntry(label, seen[label]!));
-      }
-      seen[label]!.add(r);
-    }
+    if (_latestRuns.isEmpty) return const SizedBox.shrink();
+    final last = _latestRuns.first;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -775,124 +933,30 @@ class _ScenariosScreenState extends State<ScenariosScreen> with SingleTickerProv
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
-              Text('Run History',
+              Text('Last Run',
                   style: GoogleFonts.inter(
                       color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w500)),
               const Spacer(),
-              Text('${_latestRuns.length} runs',
-                  style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 11)),
+              GestureDetector(
+                onTap: _showHistorySheet,
+                child: Text('View History →',
+                    style: GoogleFonts.inter(
+                        color: AppColors.actionPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500)),
+              ),
             ],
           ),
         ),
-        ...dayGroups.map((group) {
-          final dayLabel = group.key;
-          final runs = group.value;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
-                child: Text(dayLabel,
-                    style: GoogleFonts.inter(
-                        color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w600)),
-              ),
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  border: Border.all(color: AppColors.border),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  children: runs.asMap().entries.map((entry) {
-                    final idx = entry.key;
-                    final r = entry.value;
-                    final isAuto = r['trigger_type'] == 'autonomous';
-                    final isComplete = r['phase'] == 'completed';
-                    final dt = DateTime.parse(r['started_at'] ?? DateTime.now().toIso8601String());
-                    final runId = r['run_id'] as String?;
-                    final scenarioId = r['scenario_id'] as String?;
-                    final scenario = _scenarios.firstWhere(
-                        (s) => s.id == scenarioId,
-                        orElse: () => Scenario(id: scenarioId ?? '?', title: '', description: '', sourceCount: 0));
-
-                    BorderRadius? borderRadius;
-                    if (idx == 0 && runs.length == 1) {
-                      borderRadius = BorderRadius.circular(8);
-                    } else if (idx == 0) {
-                      borderRadius = const BorderRadius.vertical(top: Radius.circular(8));
-                    } else if (idx == runs.length - 1) {
-                      borderRadius = const BorderRadius.vertical(bottom: Radius.circular(8));
-                    }
-
-                    return Column(
-                      children: [
-                        InkWell(
-                          onTap: runId != null && scenarioId != null
-                              ? () {
-                                  HapticFeedback.selectionClick();
-                                  _openRun(runId, scenarioId);
-                                }
-                              : null,
-                          borderRadius: borderRadius,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                      color: AppColors.surface2,
-                                      border: Border.all(color: AppColors.border),
-                                      borderRadius: BorderRadius.circular(3)),
-                                  child: Text(scenarioId ?? '',
-                                      style: GoogleFonts.inter(
-                                          color: AppColors.textSecondary,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w600)),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(scenario.title,
-                                      style: GoogleFonts.inter(
-                                          color: AppColors.textPrimary, fontSize: 12),
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1),
-                                ),
-                                const SizedBox(width: 8),
-                                if (isAuto)
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 6),
-                                    child: StatusPill(
-                                        label: 'auto',
-                                        color: AppColors.stateCritical,
-                                        tint: AppColors.tintCritical),
-                                  ),
-                                StatusPill(
-                                  label: isComplete ? 'Done' : 'Running',
-                                  color: isComplete ? AppColors.stateOk : AppColors.stateWarn,
-                                  tint: isComplete ? AppColors.tintOk : AppColors.tintWarn,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(timeAgo(dt),
-                                    style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 11)),
-                                const SizedBox(width: 4),
-                                const Icon(Icons.chevron_right, size: 16, color: AppColors.textMuted),
-                              ],
-                            ),
-                          ),
-                        ),
-                        if (idx < runs.length - 1)
-                          const Divider(height: 1, color: AppColors.border),
-                      ],
-                    );
-                  }).toList(),
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-          );
-        }),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: _buildRunTile(last),
+        ),
       ],
     );
   }

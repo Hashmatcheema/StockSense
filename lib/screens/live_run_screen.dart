@@ -192,22 +192,29 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
           ],
         ),
         actions: [
-          TextButton.icon(
-            icon: Icon(Icons.assessment_outlined,
-                color: _done ? AppColors.actionPrimary : AppColors.textMuted, size: 18),
-            label: Text('View Impact',
-                style: GoogleFonts.inter(
-                    color: _done ? AppColors.actionPrimary : AppColors.textMuted,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600)),
-            onPressed: _done
-                ? () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) =>
-                          BeforeAfterScreen(runId: widget.runId, scenario: widget.scenario),
-                    ))
-                : null,
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.assessment_outlined, color: Colors.white, size: 16),
+              label: Text('View Impact',
+                  style: GoogleFonts.inter(
+                      color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+              onPressed: _done
+                  ? () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) =>
+                            BeforeAfterScreen(runId: widget.runId, scenario: widget.scenario),
+                      ))
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _done ? AppColors.stateOk : AppColors.textMuted,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: AppColors.surface2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                elevation: 0,
+              ),
+            ),
           ),
-          const SizedBox(width: 8),
         ],
       ),
       body: Column(
@@ -281,13 +288,13 @@ class _LiveRunScreenState extends State<LiveRunScreen> with SingleTickerProvider
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Row(
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
             children: [
               _buildPill(Icons.description_outlined, '$sourcesRead', 'sources read'),
-              const SizedBox(width: 8),
               _buildPill(Icons.bolt_outlined, '$actionsTaken', 'actions taken'),
-              const SizedBox(width: 8),
               _buildPill(Icons.schedule_outlined, '${seconds}s', 'elapsed'),
             ],
           ),
@@ -679,23 +686,13 @@ class _TraceEventRow extends StatelessWidget {
                         Row(
                           children: [
                             Icon(AppColors.agentIcon(event.agentName),
-                                size: 16, color: AppColors.textSecondary),
+                                size: 14, color: AppColors.textSecondary),
                             const SizedBox(width: 6),
                             Text(AppColors.agentLabel(event.agentName),
                                 style: GoogleFonts.inter(
-                                    fontSize: 13,
+                                    fontSize: 12,
                                     color: AppColors.textPrimary,
                                     fontWeight: FontWeight.w500)),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                  color: AppColors.surface2,
-                                  borderRadius: BorderRadius.circular(4)),
-                              child: Text(AppColors.eventLabel(event.eventType),
-                                  style: GoogleFonts.inter(
-                                      fontSize: 10, color: AppColors.textSecondary)),
-                            ),
                             const Spacer(),
                             Text(elapsed,
                                 style: GoogleFonts.jetBrainsMono(
@@ -811,27 +808,16 @@ class _GroupedEventRow extends StatelessWidget {
                       child: Row(
                         children: [
                           Icon(AppColors.agentIcon(first.agentName),
-                              size: 16, color: AppColors.textSecondary),
+                              size: 14, color: AppColors.textSecondary),
                           const SizedBox(width: 6),
                           Text(AppColors.agentLabel(first.agentName),
                               style: GoogleFonts.inter(
-                                  fontSize: 13,
+                                  fontSize: 12,
                                   color: AppColors.textPrimary,
                                   fontWeight: FontWeight.w500)),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                                color: AppColors.surface2,
-                                borderRadius: BorderRadius.circular(4)),
-                            child: Text(AppColors.eventLabel(first.eventType),
-                                style: GoogleFonts.inter(
-                                    fontSize: 10, color: AppColors.textSecondary)),
-                          ),
                           const SizedBox(width: 6),
-                          // Count badge
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                             decoration: BoxDecoration(
                               color: borderColor.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(10),
