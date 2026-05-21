@@ -18,7 +18,14 @@ from app.schemas import (
     Action, ActionKind, ActionPlan, ResolvedSignal, Urgency,
 )
 
-_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+_client: genai.Client | None = None
+
+
+def _get_client() -> genai.Client:
+    global _client
+    if _client is None:
+        _client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    return _client
 
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent.parent
 
@@ -119,7 +126,7 @@ Output ONLY valid JSON:
 
         try:
             def run_impact_gen():
-                return _client.models.generate_content(
+                return _get_client().models.generate_content(
                     model=settings.GEMINI_MODEL_FLASH,
                     contents=impact_prompt,
                     config=types.GenerateContentConfig(
@@ -212,7 +219,7 @@ Output ONLY valid JSON:
 
         try:
             def run_plan_gen():
-                return _client.models.generate_content(
+                return _get_client().models.generate_content(
                     model=settings.GEMINI_MODEL_FLASH,
                     contents=plan_prompt,
                     config=types.GenerateContentConfig(

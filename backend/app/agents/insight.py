@@ -25,7 +25,14 @@ from app.schemas import (
 
 log = logging.getLogger(__name__)
 
-_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+_client: genai.Client | None = None
+
+
+def _get_client() -> genai.Client:
+    global _client
+    if _client is None:
+        _client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    return _client
 
 
 class InsightAgent(BaseAgent):
@@ -99,7 +106,7 @@ Rules:
             t0 = time.time()
             try:
                 def run_gen():
-                    return _client.models.generate_content(
+                    return _get_client().models.generate_content(
                         model=settings.GEMINI_MODEL_FLASH,
                         contents=prompt,
                         config=types.GenerateContentConfig(
@@ -309,7 +316,7 @@ Output ONLY valid JSON, no markdown:
                 t0 = time.time()
                 try:
                     def run_conflict_gen():
-                        return _client.models.generate_content(
+                        return _get_client().models.generate_content(
                             model=settings.GEMINI_MODEL_FLASH,
                             contents=conflict_prompt,
                             config=types.GenerateContentConfig(
