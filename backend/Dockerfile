@@ -13,6 +13,7 @@ RUN useradd -m -u 1000 stocksense
 COPY --from=build /root/.local /home/stocksense/.local
 COPY --chown=stocksense:stocksense backend/ /app/
 COPY --chown=stocksense:stocksense scenarios/ /app/scenarios/
+RUN chown stocksense:stocksense /app
 ENV PATH=/home/stocksense/.local/bin:$PATH \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
