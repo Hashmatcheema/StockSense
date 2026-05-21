@@ -1,6 +1,0 @@
-{
-  "prompt": "dummy",
-  "response": "{\"signals\": [{\"kind\": \"stock_level\", \"sku\": \"AC-INV-12K-HAI\", \"metric\": \"units_on_hand\", \"value\": 18, \"delta_vs_baseline_pct\": -40.0, \"rationale\": \"Low warehouse stock of Haier ACs.\"}, {\"kind\": \"stock_level\", \"sku\": \"AC-INV-15K-ORL\", \"metric\": \"units_on_hand\", \"value\": 7, \"delta_vs_baseline_pct\": -53.0, \"rationale\": \"Depleted Orient AC units.\"}]}",
-  "latency_ms": 150,
-  "tokens_used": 200
-}

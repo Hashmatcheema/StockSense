@@ -1,5 +1,0 @@
-{
-  "response": "{\"signals\": [{\"kind\": \"complaint_cluster\", \"sku\": \"SKU-AC-12K-HAI\", \"metric\": \"ac_delivery_complaints\", \"value\": 18, \"delta_vs_baseline_pct\": 200.0, \"rationale\": \"18 AC delivery complaints with PKR 3.2M churn risk — severity high\"}]}",
-  "latency_ms": 310,
-  "tokens_used": 180
-}

@@ -1,5 +1,0 @@
-{
-  "response": "{\"signals\": [{\"kind\": \"supplier_status\", \"sku\": null, \"metric\": \"supplier_silence_days\", \"value\": 5, \"delta_vs_baseline_pct\": null, \"rationale\": \"Karachi Cool unresponsive for 5 days — fourth follow-up ignored, supplier relationship at risk\"}]}",
-  "latency_ms": 285,
-  "tokens_used": 168
-}

@@ -1,5 +1,0 @@
-{
-  "response": "{\"signals\": [{\"kind\": \"supplier_status\", \"sku\": \"SKU-FAN-24-HAV\", \"metric\": \"alt_supplier_availability_units\", \"value\": 75, \"delta_vs_baseline_pct\": null, \"rationale\": \"Lahore Electronics Hub has 75 ceiling fans available at 12 percent premium with 2-day lead time — viable backup\"}]}",
-  "latency_ms": 295,
-  "tokens_used": 172
-}

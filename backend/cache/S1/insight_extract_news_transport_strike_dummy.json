@@ -1,6 +1,0 @@
-{
-  "prompt": "dummy",
-  "response": "{\"signals\": [{\"kind\": \"external_shock\", \"sku\": null, \"metric\": \"logistics_disruption_days\", \"value\": 3, \"delta_vs_baseline_pct\": null, \"rationale\": \"Transport strike blocking highways.\"}]}",
-  "latency_ms": 150,
-  "tokens_used": 200
-}

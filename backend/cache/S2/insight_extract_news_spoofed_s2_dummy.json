@@ -1,6 +1,0 @@
-{
-  "prompt": "dummy",
-  "response": "{\"signals\": [{\"kind\": \"stock_level\", \"sku\": \"SKU-117\", \"metric\": \"units_on_hand\", \"value\": 12, \"delta_vs_baseline_pct\": -90.0, \"rationale\": \"Crisis news claims stock depleted to 12.\"}]}",
-  "latency_ms": 150,
-  "tokens_used": 200
-}

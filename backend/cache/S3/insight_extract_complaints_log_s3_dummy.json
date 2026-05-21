@@ -1,5 +1,0 @@
-{
-  "response": "{\"signals\": [{\"kind\": \"complaint_cluster\", \"sku\": \"SKU-FAN-24-HAV\", \"metric\": \"fan_escalated_complaints\", \"value\": 11, \"delta_vs_baseline_pct\": 175.0, \"rationale\": \"11 escalated ceiling fan complaints totalling PKR 512,500 — manager already notified, severity high\"}]}",
-  "latency_ms": 315,
-  "tokens_used": 182
-}

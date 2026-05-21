@@ -1,5 +1,0 @@
-{
-  "response": "{\"signals\": [{\"kind\": \"sales_change\", \"sku\": \"SKU-AC-12K-HAI\", \"metric\": \"daily_ac_sales_velocity\", \"value\": 6.6, \"delta_vs_baseline_pct\": 45.0, \"rationale\": \"AC sales velocity up 45 percent during summer peak — 46 units in 7 days\"}, {\"kind\": \"complaint_cluster\", \"sku\": null, \"metric\": \"delivery_complaint_count\", \"value\": 18, \"delta_vs_baseline_pct\": 200.0, \"rationale\": \"18 delivery complaints this week, triple the monthly baseline\"}]}",
-  "latency_ms": 380,
-  "tokens_used": 195
-}
