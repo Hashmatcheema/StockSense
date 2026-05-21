@@ -1,0 +1,11 @@
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+backend/*.pyo
+backend/.env
+backend/*.db
+backend/*.db-shm
+backend/*.db-wal
+backend/cache/
+build/
+.dart_tool/
